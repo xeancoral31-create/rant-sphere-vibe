@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
@@ -61,6 +62,11 @@ const SsoCallbackRoute = SsoCallbackRouteImport.update({
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/admin'
+    | '/dashboard'
     | '/explore'
     | '/home'
     | '/messages'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/admin'
+    | '/dashboard'
     | '/explore'
     | '/home'
     | '/messages'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/_authenticated/admin'
+    | '/_authenticated/dashboard'
     | '/_authenticated/explore'
     | '/_authenticated/home'
     | '/_authenticated/messages'
@@ -311,6 +323,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/explore': {
@@ -402,6 +421,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
@@ -415,6 +435,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
