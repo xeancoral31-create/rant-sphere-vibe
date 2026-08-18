@@ -1,13 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal, EyeOff, Bookmark, Flag, AlertTriangle } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Repeat2,
+  Share2,
+  Bookmark,
+  MoreHorizontal,
+  Play,
+  Pause,
+  Music,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  MapPin,
+  Send,
+  Trash2,
+  CheckCircle2
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { type MusicTrack } from "@/lib/music";
 
 const REACTIONS = ["like", "love", "laugh", "wow", "sad", "fire"] as const;
-const EMOJI: Record<string, string> = { like: "👍", love: "❤️", laugh: "😂", wow: "😮", sad: "😢", fire: "🔥" };
+const EMOJI: Record<string, string> = {
+  like: "👍",
+  love: "❤️",
+  laugh: "😂",
+  wow: "😮",
+  sad: "😢",
+  fire: "🔥",
+};
 
 export interface PostWithMeta {
   id: string;
@@ -27,7 +52,19 @@ function renderContent(text: string) {
   return text.split(/(\s+)/).map((part, i) => {
     if (/^#[A-Za-z0-9_]{2,40}$/.test(part)) {
       const tag = part.slice(1).toLowerCase();
-      return <Link key={i} to="/tag/$tag" params={{ tag }} className="text-primary hover:underline">{part}</Link>;
+      return (
+        <Link key={i} to="/tag/$tag" params={{ tag }} className="text-primary hover:underline font-semibold">
+          {part}
+        </Link>
+      );
+    }
+    if (/^@[A-Za-z0-9_]{2,40}$/.test(part)) {
+      const username = part.slice(1);
+      return (
+        <Link key={i} to="/profile/$username" params={{ username }} className="text-accent hover:underline font-semibold">
+          {part}
+        </Link>
+      );
     }
     return <span key={i}>{part}</span>;
   });
@@ -37,320 +74,513 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
   const { user } = useAuthContext();
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [myReaction, setMyReaction] = useState<string | null>(null);
-  const [comments, setComments] = useState(0);
-  const [showReactions, setShowReactions] = useState(false);
+  const [commentsCount, setCommentsCount] = useState(0);
+  const [commentsList, setCommentsList] = useState<any[]>([]);
   const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [showReactions, setShowReactions] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [reposted, setReposted] = useState(false);
+  const [repostsCount, setRepostsCount] = useState(0);
   const [original, setOriginal] = useState<PostWithMeta | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  
+  // Double tap heart animation
+  const [showHeartPop, setShowHeartPop] = useState(false);
+  const lastTapRef = useRef<number>(0);
 
-  useEffect(() => { loadCounts(); }, [post.id, user?.id]);
+  // Music state
+  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Poll state
+  const [pollVotes, setPollVotes] = useState<Record<number, number>>({});
+  const [myVote, setMyVote] = useState<number | null>(null);
+
+  useEffect(() => {
+    loadCounts();
+  }, [post.id, user?.id]);
+
   useEffect(() => {
     if (post.reposted_from) {
-      supabase.from("posts").select("*, profiles(username, display_name, avatar_url)").eq("id", post.reposted_from).maybeSingle()
+      supabase
+        .from("posts")
+        .select("*, profiles(username, display_name, avatar_url)")
+        .eq("id", post.reposted_from)
+        .maybeSingle()
         .then(({ data }) => setOriginal(data as PostWithMeta | null));
     }
   }, [post.reposted_from]);
 
   async function loadCounts() {
-    const [r, c, mine, bm, rep] = await Promise.all([
+    const [r, c, mine, bm, rep, votes, myV] = await Promise.all([
       supabase.from("reactions").select("reaction").eq("post_id", post.id),
       supabase.from("comments").select("*", { count: "exact", head: true }).eq("post_id", post.id),
       user ? supabase.from("reactions").select("reaction").eq("post_id", post.id).eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from("bookmarks" as never).select("post_id").eq("user_id", user.id).eq("post_id", post.id).maybeSingle() : Promise.resolve({ data: null }),
-      user ? supabase.from("posts").select("id", { head: true, count: "exact" }).eq("reposted_from", post.id).eq("author_id", user.id) : Promise.resolve({ count: 0 }),
+      supabase.from("posts").select("id", { head: true, count: "exact" }).eq("reposted_from", post.id),
+      post.post_type === "poll" ? supabase.from("poll_votes" as never).select("option_index").eq("post_id", post.id) : Promise.resolve({ data: [] }),
+      user && post.post_type === "poll" ? supabase.from("poll_votes" as never).select("option_index").eq("post_id", post.id).eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
+
     const map: Record<string, number> = {};
-    (r.data ?? []).forEach((row: { reaction: string }) => { map[row.reaction] = (map[row.reaction] ?? 0) + 1; });
+    (r.data ?? []).forEach((row: { reaction: string }) => {
+      map[row.reaction] = (map[row.reaction] ?? 0) + 1;
+    });
     setCounts(map);
-    setComments(c.count ?? 0);
+    setCommentsCount(c.count ?? 0);
     setMyReaction((mine as { data: { reaction: string } | null }).data?.reaction ?? null);
     setBookmarked(!!(bm as { data: unknown }).data);
-    setReposted(((rep as { count: number | null }).count ?? 0) > 0);
+    setRepostsCount(rep.count ?? 0);
+
+    if (post.post_type === "poll" && votes.data) {
+      const vMap: Record<number, number> = {};
+      (votes.data as any[]).forEach((v) => {
+        vMap[v.option_index] = (vMap[v.option_index] ?? 0) + 1;
+      });
+      setPollVotes(vMap);
+      setMyVote((myV as { data: { option_index: number } | null })?.data?.option_index ?? null);
+    }
+  }
+
+  async function loadComments() {
+    const { data } = await supabase
+      .from("comments")
+      .select("*, profiles(username, display_name, avatar_url)")
+      .eq("post_id", post.id)
+      .order("created_at", { ascending: true });
+    setCommentsList(data ?? []);
   }
 
   async function toggleReaction(emoji: string) {
-    if (!user) return;
+    if (!user) return toast.error("Please sign in to react");
     setShowReactions(false);
     if (myReaction === emoji) {
       await supabase.from("reactions").delete().eq("post_id", post.id).eq("user_id", user.id);
+      setMyReaction(null);
     } else {
-      if (myReaction) await supabase.from("reactions").delete().eq("post_id", post.id).eq("user_id", user.id);
-      await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, reaction: emoji });
-      if (post.author_id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: post.author_id, actor_id: user.id, type: "like" as never, post_id: post.id,
-        });
+      if (myReaction) {
+        await supabase.from("reactions").delete().eq("post_id", post.id).eq("user_id", user.id);
       }
+      await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, reaction: emoji });
+      setMyReaction(emoji);
     }
     loadCounts();
+  }
+
+  function handleDoubleTap() {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      toggleReaction("love");
+      setShowHeartPop(true);
+      setTimeout(() => setShowHeartPop(false), 900);
+    }
+    lastTapRef.current = now;
   }
 
   async function toggleBookmark() {
     if (!user) return;
     if (bookmarked) {
       await supabase.from("bookmarks" as never).delete().eq("user_id", user.id).eq("post_id", post.id);
+      setBookmarked(false);
+      toast.success("Removed from bookmarks");
     } else {
       await supabase.from("bookmarks" as never).insert({ user_id: user.id, post_id: post.id } as never);
+      setBookmarked(true);
+      toast.success("Saved to bookmarks");
     }
-    setBookmarked(!bookmarked);
   }
 
   async function toggleRepost() {
     if (!user) return;
     if (reposted) {
       await supabase.from("posts").delete().eq("author_id", user.id).eq("reposted_from", post.id);
-      setReposted(false);
-      toast.success("Repost removed");
+      toast.success("Un-reposted");
     } else {
-      const { error } = await supabase.from("posts").insert({
-        author_id: user.id, reposted_from: post.id, post_type: "text" as never, is_anonymous: false,
+      await supabase.from("posts").insert({
+        author_id: user.id,
+        reposted_from: post.id,
+        post_type: "text",
+        content: null,
       });
-      if (error) return toast.error(error.message);
-      setReposted(true); toast.success("Reposted");
+      toast.success("Reposted to your profile!");
     }
+    loadCounts();
     onChange?.();
   }
 
-  async function reportPost() {
-    if (!user) return;
-    const reason = prompt("Why are you reporting this?");
-    if (!reason) return;
-    await supabase.from("reports").insert({ reporter_id: user.id, target_type: "post", target_id: post.id, reason });
-    toast.success("Reported. Thanks for keeping the sphere safe.");
+  async function handleVote(optionIndex: number) {
+    if (!user) return toast.error("Sign in to vote");
+    if (myVote !== null) return;
+    await supabase.from("poll_votes" as never).insert({
+      post_id: post.id,
+      user_id: user.id,
+      option_index: optionIndex,
+    } as never);
+    setMyVote(optionIndex);
+    loadCounts();
   }
 
-  async function deletePost() {
-    if (!confirm("Delete this rant?")) return;
-    const { error } = await supabase.from("posts").delete().eq("id", post.id);
-    if (error) return toast.error(error.message);
-    toast.success("Deleted"); onChange?.();
-  }
-
-  const author = post.is_anonymous
-    ? { username: "anonymous", display_name: "Anonymous", avatar_url: null }
-    : post.profiles ?? { username: "user", display_name: "User", avatar_url: null };
-
-  if (post.is_hidden && !revealed && user?.id !== post.author_id) {
-    return (
-      <article className="glass rounded-3xl p-5 shadow-card border-destructive/30 border">
-        <div className="flex items-center gap-3 text-sm">
-          <AlertTriangle className="w-5 h-5 text-destructive" />
-          <span className="text-muted-foreground">Hidden by AI moderation.</span>
-          <button onClick={() => setRevealed(true)} className="ml-auto text-xs text-primary hover:underline">Show anyway</button>
-        </div>
-      </article>
-    );
-  }
-
-  return (
-    <article className="glass rounded-3xl p-5 shadow-card hover:border-primary/30 transition">
-      <div className="flex gap-3">
-        {post.is_anonymous ? (
-          <div className="w-11 h-11 rounded-full bg-muted grid place-items-center"><EyeOff className="w-5 h-5" /></div>
-        ) : (
-          <Link to="/profile/$username" params={{ username: author.username }} className="w-11 h-11 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold flex-shrink-0 overflow-hidden">
-            {author.avatar_url ? <img src={author.avatar_url} className="w-full h-full object-cover" /> : author.username?.[0]?.toUpperCase()}
-          </Link>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 text-sm flex-wrap">
-            {post.is_anonymous ? (
-              <span className="font-semibold">Anonymous</span>
-            ) : (
-              <Link to="/profile/$username" params={{ username: author.username }} className="font-semibold hover:underline">
-                {author.display_name || author.username}
-              </Link>
-            )}
-            {!post.is_anonymous && <span className="text-muted-foreground">@{author.username}</span>}
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground text-xs">{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
-            {post.is_hidden && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-destructive/20 text-destructive">Hidden</span>}
-            <div className="ml-auto flex items-center gap-1">
-              {user && user.id !== post.author_id && (
-                <button onClick={reportPost} className="text-muted-foreground hover:text-destructive p-1" title="Report"><Flag className="w-4 h-4" /></button>
-              )}
-              {user?.id === post.author_id && (
-                <button onClick={deletePost} className="text-muted-foreground hover:text-destructive p-1">
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {post.content && (
-            <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-              {renderContent(post.content)}
-            </p>
-          )}
-
-          {post.post_type === "poll" && post.poll_options && (
-            <PollView postId={post.id} options={post.poll_options} />
-          )}
-
-          {post.media_url && post.post_type === "video" ? (
-            <video src={post.media_url} controls playsInline className="mt-3 rounded-2xl w-full max-h-[500px] bg-black" />
-          ) : post.media_url ? (
-            <div className="mt-3 rounded-2xl overflow-hidden border border-border">
-              <img src={post.media_url} className="w-full max-h-[500px] object-cover" loading="lazy" />
-            </div>
-          ) : null}
-
-          {original && (
-            <div className="mt-3 rounded-2xl border border-border p-3">
-              <div className="text-xs text-muted-foreground mb-1">Reposted from @{original.profiles?.username}</div>
-              <div className="text-sm whitespace-pre-wrap">{original.content}</div>
-              {original.media_url && original.post_type !== "video" && (
-                <img src={original.media_url} className="mt-2 rounded-xl max-h-60 object-cover" loading="lazy" />
-              )}
-            </div>
-          )}
-
-          <div className="mt-3 flex items-center gap-1 text-muted-foreground relative">
-            <div className="relative">
-              <button
-                onMouseEnter={() => setShowReactions(true)}
-                onMouseLeave={() => setShowReactions(false)}
-                onClick={() => toggleReaction("like")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-primary/10 hover:text-primary transition ${myReaction ? "text-primary" : ""}`}
-              >
-                {myReaction ? <span className="text-base leading-none">{EMOJI[myReaction]}</span> : <Heart className="w-4 h-4" />}
-                <span className="text-sm">{Object.values(counts).reduce((a, b) => a + b, 0)}</span>
-              </button>
-              {showReactions && (
-                <div onMouseEnter={() => setShowReactions(true)} onMouseLeave={() => setShowReactions(false)}
-                  className="absolute -top-12 left-0 glass rounded-full px-2 py-1.5 flex gap-1 shadow-card z-10">
-                  {REACTIONS.map(r => (
-                    <button key={r} onClick={() => toggleReaction(r)} className="text-xl hover:scale-125 transition w-8 h-8 grid place-items-center">
-                      {EMOJI[r]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-accent/10 hover:text-accent transition">
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-sm">{comments}</span>
-            </button>
-            <button onClick={toggleRepost} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-violet/20 transition ${reposted ? "text-primary" : ""}`}>
-              <Repeat2 className="w-4 h-4" />
-            </button>
-            <button onClick={toggleBookmark} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-card transition ml-auto ${bookmarked ? "text-primary" : ""}`}>
-              <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-current" : ""}`} />
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-card transition"
-              onClick={() => { navigator.clipboard.writeText(window.location.origin + "/post/" + post.id); toast.success("Link copied"); }}>
-              <Share2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          {showComments && <CommentsThread postId={post.id} onChange={() => setComments((n) => n + 1)} />}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function PollView({ postId, options }: { postId: string; options: { text: string }[] }) {
-  const { user } = useAuthContext();
-  const [votes, setVotes] = useState<number[]>(options.map(() => 0));
-  const [myVote, setMyVote] = useState<number | null>(null);
-
-  useEffect(() => { load(); }, [postId, user?.id]);
-  useEffect(() => {
-    const ch = supabase.channel(`poll-${postId}`).on("postgres_changes", {
-      event: "*", schema: "public", table: "poll_votes", filter: `post_id=eq.${postId}`,
-    }, () => load()).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [postId]);
-
-  async function load() {
-    const { data } = await supabase.from("poll_votes" as never).select("option_index, user_id").eq("post_id", postId);
-    const counts = options.map(() => 0);
-    (data as { option_index: number; user_id: string }[] | null ?? []).forEach((v) => {
-      if (counts[v.option_index] !== undefined) counts[v.option_index]++;
-      if (user && v.user_id === user.id) setMyVote(v.option_index);
+  async function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user || !newComment.trim()) return;
+    const { error } = await supabase.from("comments").insert({
+      post_id: post.id,
+      author_id: user.id,
+      content: newComment.trim(),
     });
-    setVotes(counts);
-  }
-
-  async function vote(i: number) {
-    if (!user || myVote !== null) return;
-    await supabase.from("poll_votes" as never).insert({ post_id: postId, user_id: user.id, option_index: i } as never);
-    setMyVote(i); load();
-  }
-
-  const total = votes.reduce((a, b) => a + b, 0);
-  return (
-    <div className="mt-3 space-y-2">
-      {options.map((opt, i) => {
-        const pct = total > 0 ? (votes[i] / total) * 100 : 0;
-        const isMine = myVote === i;
-        return (
-          <button key={i} onClick={() => vote(i)} disabled={myVote !== null}
-            className={`relative w-full text-left rounded-xl border ${isMine ? "border-primary" : "border-border"} px-4 py-2.5 overflow-hidden hover:border-primary/60 transition disabled:cursor-default`}>
-            <div className="absolute inset-y-0 left-0 bg-primary/20 transition-all" style={{ width: myVote !== null ? `${pct}%` : 0 }} />
-            <div className="relative flex justify-between items-center text-sm">
-              <span>{opt.text}</span>
-              {myVote !== null && <span className="text-muted-foreground text-xs">{Math.round(pct)}% · {votes[i]}</span>}
-            </div>
-          </button>
-        );
-      })}
-      <div className="text-xs text-muted-foreground">{total} vote{total !== 1 ? "s" : ""}</div>
-    </div>
-  );
-}
-
-function CommentsThread({ postId, onChange }: { postId: string; onChange?: () => void }) {
-  const { user, profile } = useAuthContext();
-  const [items, setItems] = useState<{ id: string; content: string; created_at: string; author_id: string; profiles?: { username: string; avatar_url: string | null } | null }[]>([]);
-  const [text, setText] = useState("");
-
-  useEffect(() => { load(); }, [postId]);
-  useEffect(() => {
-    const ch = supabase.channel(`c-${postId}`).on("postgres_changes", {
-      event: "INSERT", schema: "public", table: "comments", filter: `post_id=eq.${postId}`,
-    }, () => load()).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [postId]);
-
-  async function load() {
-    const { data } = await supabase.from("comments").select("id, content, created_at, author_id, profiles(username, avatar_url)").eq("post_id", postId).order("created_at", { ascending: true }).limit(50);
-    setItems((data as never) ?? []);
-  }
-
-  async function send() {
-    if (!user || !text.trim()) return;
-    const { error } = await supabase.from("comments").insert({ post_id: postId, author_id: user.id, content: text.trim() });
     if (error) return toast.error(error.message);
-    setText(""); onChange?.();
+    setNewComment("");
+    loadComments();
+    loadCounts();
   }
 
+  function handleCopyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/home#${post.id}`);
+    toast.success("Link copied to clipboard!");
+  }
+
+  // Parse attached custom data
+  let musicData: MusicTrack | null = null;
+  let gradientBg = "";
+  let noteData: { emoji: string; bg: string } | null = null;
+
+  if (post.post_type === "music" && post.media_url) {
+    try { musicData = JSON.parse(post.media_url); } catch {}
+  } else if (post.post_type === "rant_gradient" && post.media_url) {
+    try { gradientBg = JSON.parse(post.media_url).bg; } catch {}
+  } else if (post.post_type === "note" && post.media_url) {
+    try { noteData = JSON.parse(post.media_url); } catch {}
+  }
+
+  const totalReactions = Object.values(counts).reduce((a, b) => a + b, 0);
+  const targetPost = original || post;
+  const author = targetPost.profiles;
+
   return (
-    <div className="mt-3 border-t border-border pt-3 space-y-3">
-      {items.map((c) => (
-        <div key={c.id} className="flex gap-2 text-sm">
-          <div className="w-7 h-7 rounded-full bg-gradient-vivid grid place-items-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
-            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : c.profiles?.username?.[0]?.toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0 bg-card rounded-2xl px-3 py-2">
-            <div className="text-xs"><span className="font-semibold">@{c.profiles?.username}</span> <span className="text-muted-foreground">· {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span></div>
-            <div className="whitespace-pre-wrap break-words">{c.content}</div>
-          </div>
-        </div>
-      ))}
-      {user && (
-        <div className="flex gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-vivid grid place-items-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
-            {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : profile?.username?.[0]?.toUpperCase()}
-          </div>
-          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-            placeholder="Reply..." className="flex-1 bg-input rounded-2xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary" />
-          <button onClick={send} className="text-sm font-semibold text-primary hover:underline px-2">Reply</button>
+    <article
+      id={post.id}
+      className="glass rounded-3xl p-5 shadow-card border border-border/40 transition hover:border-border/80 relative overflow-hidden group animate-fade-in"
+      onClick={handleDoubleTap}
+    >
+      {/* Pop Heart Animation */}
+      {showHeartPop && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40 animate-scale-in">
+          <Heart className="w-24 h-24 text-rose-500 fill-rose-500 drop-shadow-2xl animate-bounce" />
         </div>
       )}
-    </div>
+
+      {/* Repost Header */}
+      {post.reposted_from && (
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground mb-3 pb-2 border-b border-border/30">
+          <Repeat2 className="w-4 h-4 text-emerald-400" />
+          <span>@{post.profiles?.username} reposted</span>
+        </div>
+      )}
+
+      {/* Note Badge if Note post */}
+      {noteData && (
+        <div className="mb-3 flex items-center gap-2 bg-purple-500/15 border border-purple-500/30 px-3 py-1.5 rounded-full text-xs text-purple-300 w-fit">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>24h Thought Note</span>
+        </div>
+      )}
+
+      {/* Post Author Header */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/profile/$username"
+          params={{ username: author?.username || "user" }}
+          className="flex items-center gap-3 group/author"
+        >
+          <div className="w-11 h-11 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold overflow-hidden shadow-glow">
+            {author?.avatar_url ? (
+              <img src={author.avatar_url} className="w-full h-full object-cover" />
+            ) : (
+              author?.username?.[0]?.toUpperCase() || "U"
+            )}
+          </div>
+          <div>
+            <div className="font-semibold text-sm group-hover/author:text-primary transition flex items-center gap-1">
+              <span>{author?.display_name || author?.username || "User"}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>@{author?.username || "user"}</span>
+              <span>•</span>
+              <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+            </div>
+          </div>
+        </Link>
+
+        <div className="relative flex items-center gap-1">
+          <button
+            onClick={handleCopyLink}
+            className="w-8 h-8 rounded-full grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition"
+            title="Copy link"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      {/* 1. Note Style */}
+      {noteData && (
+        <div
+          className="mt-4 rounded-2xl p-6 text-center text-white font-display font-bold text-xl shadow-inner flex flex-col items-center justify-center"
+          style={{ background: noteData.bg }}
+        >
+          <span className="text-4xl mb-2">{noteData.emoji}</span>
+          <p className="text-lg">{post.content}</p>
+        </div>
+      )}
+
+      {/* 2. Gradient Card Style */}
+      {gradientBg && !noteData && (
+        <div
+          className="mt-4 rounded-2xl p-8 text-center text-white font-display font-bold text-2xl shadow-inner min-h-[160px] flex items-center justify-center"
+          style={{ background: gradientBg }}
+        >
+          <p className="drop-shadow-md">{post.content}</p>
+        </div>
+      )}
+
+      {/* 3. Regular Text Post */}
+      {!gradientBg && !noteData && post.content && (
+        <div className="mt-3 text-base text-foreground/95 whitespace-pre-wrap leading-relaxed">
+          {renderContent(post.content)}
+        </div>
+      )}
+
+      {/* 4. Photo/Video Media */}
+      {post.media_url && !musicData && !gradientBg && !noteData && (
+        <div className="mt-3 rounded-2xl overflow-hidden border border-border/40 bg-black/40">
+          {post.post_type === "video" || post.media_url.includes(".mp4") || post.media_url.includes(".webm") ? (
+            <video src={post.media_url} controls playsInline className="w-full max-h-[500px] object-contain mx-auto" />
+          ) : (
+            <img src={post.media_url} alt="post media" className="w-full max-h-[550px] object-cover" />
+          )}
+        </div>
+      )}
+
+      {/* 5. Music Card */}
+      {musicData && (
+        <div className="mt-3 bg-card/80 border border-primary/30 rounded-2xl p-4 shadow-glow backdrop-blur-md flex items-center gap-4">
+          <audio
+            ref={audioRef}
+            src={musicData.audioUrl}
+            onEnded={() => setIsPlayingMusic(false)}
+            className="hidden"
+          />
+          <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 shadow-md group/music">
+            <img src={musicData.coverUrl} className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => {
+                if (isPlayingMusic) {
+                  audioRef.current?.pause();
+                  setIsPlayingMusic(false);
+                } else {
+                  audioRef.current?.play().catch(() => {});
+                  setIsPlayingMusic(true);
+                }
+              }}
+              className="absolute inset-0 bg-black/40 grid place-items-center text-white hover:scale-105 transition"
+            >
+              {isPlayingMusic ? <Pause className="w-6 h-6 text-primary" /> : <Play className="w-6 h-6 text-white ml-0.5" />}
+            </button>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 text-xs text-primary font-semibold uppercase tracking-wider">
+              <Music className="w-3.5 h-3.5" /> Music Track
+            </div>
+            <div className="font-display font-bold text-sm text-foreground truncate mt-0.5">{musicData.title}</div>
+            <div className="text-xs text-muted-foreground truncate">{musicData.artist} • {musicData.genre}</div>
+          </div>
+
+          {/* Sound wave bars */}
+          <div className="flex items-end gap-1 h-6 pr-2">
+            {[12, 20, 16, 24, 14].map((h, i) => (
+              <div
+                key={i}
+                className={`w-1 rounded-full bg-gradient-vivid ${isPlayingMusic ? "animate-pulse" : "opacity-40"}`}
+                style={{ height: isPlayingMusic ? `${h}px` : "6px", animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Poll Options Card */}
+      {post.post_type === "poll" && post.poll_options && (
+        <div className="mt-3 space-y-2">
+          {post.poll_options.map((opt, i) => {
+            const votes = pollVotes[i] ?? 0;
+            const total = Object.values(pollVotes).reduce((a, b) => a + b, 0);
+            const pct = total > 0 ? Math.round((votes / total) * 100) : 0;
+            const isMyVote = myVote === i;
+
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleVote(i)}
+                disabled={myVote !== null}
+                className={`w-full relative overflow-hidden rounded-xl border p-3 text-left transition flex items-center justify-between text-xs font-semibold ${
+                  isMyVote
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-border/40 hover:bg-muted/40"
+                }`}
+              >
+                {myVote !== null && (
+                  <div
+                    className="absolute inset-y-0 left-0 bg-primary/20 transition-all duration-500 z-0"
+                    style={{ width: `${pct}%` }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  {isMyVote && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                  {opt.text}
+                </span>
+                {myVote !== null && (
+                  <span className="relative z-10 font-bold">{pct}%</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Reaction & Action Toolbar */}
+      <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
+        {/* Left Actions (Reaction, Comments, Repost) */}
+        <div className="flex items-center gap-1 sm:gap-3">
+          {/* Reaction Picker Button */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => toggleReaction(myReaction || "like")}
+              onMouseEnter={() => setShowReactions(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                myReaction
+                  ? "bg-rose-500/15 text-rose-500"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${myReaction ? "fill-rose-500 text-rose-500" : ""}`} />
+              <span>{totalReactions > 0 ? totalReactions : "Like"}</span>
+            </button>
+
+            {/* Floating Reactions Bar */}
+            {showReactions && (
+              <div
+                onMouseLeave={() => setShowReactions(false)}
+                className="absolute bottom-full left-0 mb-2 flex items-center gap-1.5 bg-card/95 border border-border/60 backdrop-blur-xl p-1.5 rounded-full shadow-2xl z-30 animate-scale-in"
+              >
+                {REACTIONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => toggleReaction(r)}
+                    className="text-xl hover:scale-150 transition p-1"
+                  >
+                    {EMOJI[r]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Comment Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!showComments) loadComments();
+              setShowComments(!showComments);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>{commentsCount > 0 ? commentsCount : "Comment"}</span>
+          </button>
+
+          {/* Repost Button */}
+          <button
+            type="button"
+            onClick={toggleRepost}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+              reposted ? "text-emerald-400 bg-emerald-500/15" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Repeat2 className="w-4 h-4" />
+            <span>{repostsCount > 0 ? repostsCount : ""}</span>
+          </button>
+        </div>
+
+        {/* Right Actions (Bookmark) */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleBookmark}
+            className={`p-2 rounded-full transition ${
+              bookmarked ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-primary" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Expandable Comments Drawer */}
+      {showComments && (
+        <div className="mt-4 pt-3 border-t border-border/30 space-y-3 animate-fade-in">
+          {/* New Comment Input */}
+          <form onSubmit={handleAddComment} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Write a reply..."
+              className="flex-1 bg-input text-xs rounded-full px-4 py-2 outline-none border border-border/40 focus:ring-1 focus:ring-primary"
+            />
+            <button
+              type="submit"
+              disabled={!newComment.trim()}
+              className="w-8 h-8 rounded-full bg-gradient-vivid grid place-items-center text-white shadow-glow disabled:opacity-40"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          {/* Comment List */}
+          <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+            {commentsList.length === 0 ? (
+              <div className="text-center py-4 text-xs text-muted-foreground">No replies yet. Start the conversation!</div>
+            ) : (
+              commentsList.map((c) => (
+                <div key={c.id} className="flex items-start gap-2.5 text-xs">
+                  <div className="w-7 h-7 rounded-full bg-gradient-vivid grid place-items-center text-white text-[10px] font-bold overflow-hidden flex-shrink-0 mt-0.5">
+                    {c.profiles?.avatar_url ? (
+                      <img src={c.profiles.avatar_url} className="w-full h-full object-cover" />
+                    ) : (
+                      c.profiles?.username?.[0]?.toUpperCase() || "U"
+                    )}
+                  </div>
+                  <div className="flex-1 bg-muted/30 border border-border/30 rounded-2xl px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground">@{c.profiles?.username || "user"}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-foreground/90">{c.content}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
