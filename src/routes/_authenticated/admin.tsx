@@ -27,11 +27,18 @@ function AdminPage() {
 
   useEffect(() => {
     if (!user) return;
+    const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress;
+    if (email === "xeancoral31@gmail.com") {
+      setIsAdmin(true);
+      load();
+      return;
+    }
+
     supabase.from("user_roles").select("*").eq("user_id", user.id).eq("role", "admin").maybeSingle().then(({ data }) => {
       setIsAdmin(!!data);
       if (data) load();
     });
-  }, [user?.id]);
+  }, [user]);
 
   async function load() {
     const [u, p, r, s, rep, fl] = await Promise.all([

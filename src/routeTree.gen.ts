@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthRedirectRouteImport } from './routes/auth-redirect'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -22,6 +24,8 @@ import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTrendingRouteImport } from './routes/_authenticated/trending'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as LoginSsoCallbackRouteImport } from './routes/login.sso-callback'
+import { Route as RegisterSsoCallbackRouteImport } from './routes/register.sso-callback'
 import { Route as AuthenticatedProfileUsernameRouteImport } from './routes/_authenticated/profile.$username'
 import { Route as AuthenticatedTagTagRouteImport } from './routes/_authenticated/tag.$tag'
 
@@ -34,6 +38,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRedirectRoute = AuthRedirectRouteImport.update({
+  id: '/auth-redirect',
+  path: '/auth-redirect',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -42,6 +51,11 @@ const LoginRoute = LoginRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -90,6 +104,16 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginSsoCallbackRoute = LoginSsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => LoginRoute,
+} as any)
+const RegisterSsoCallbackRoute = RegisterSsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
+  getParentRoute: () => RegisterRoute,
+} as any)
 const AuthenticatedProfileUsernameRoute =
   AuthenticatedProfileUsernameRouteImport.update({
     id: '/profile/$username',
@@ -104,8 +128,10 @@ const AuthenticatedTagTagRoute = AuthenticatedTagTagRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
+  '/auth-redirect': typeof AuthRedirectRoute
+  '/login': typeof LoginRouteWithChildren
+  '/register': typeof RegisterRouteWithChildren
+  '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -115,13 +141,17 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
+  '/auth-redirect': typeof AuthRedirectRoute
+  '/login': typeof LoginRouteWithChildren
+  '/register': typeof RegisterRouteWithChildren
+  '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -131,6 +161,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
 }
@@ -138,8 +170,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
+  '/auth-redirect': typeof AuthRedirectRoute
+  '/login': typeof LoginRouteWithChildren
+  '/register': typeof RegisterRouteWithChildren
+  '/sso-callback': typeof SsoCallbackRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -149,6 +183,8 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/_authenticated/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/_authenticated/tag/$tag': typeof AuthenticatedTagTagRoute
 }
@@ -156,8 +192,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth-redirect'
     | '/login'
     | '/register'
+    | '/sso-callback'
     | '/admin'
     | '/explore'
     | '/home'
@@ -167,13 +205,17 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trending'
     | '/admin/login'
+    | '/login/sso-callback'
+    | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth-redirect'
     | '/login'
     | '/register'
+    | '/sso-callback'
     | '/admin'
     | '/explore'
     | '/home'
@@ -183,14 +225,18 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trending'
     | '/admin/login'
+    | '/login/sso-callback'
+    | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/auth-redirect'
     | '/login'
     | '/register'
+    | '/sso-callback'
     | '/_authenticated/admin'
     | '/_authenticated/explore'
     | '/_authenticated/home'
@@ -200,6 +246,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/trending'
     | '/admin/login'
+    | '/login/sso-callback'
+    | '/register/sso-callback'
     | '/_authenticated/profile/$username'
     | '/_authenticated/tag/$tag'
   fileRoutesById: FileRoutesById
@@ -207,8 +255,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  LoginRoute: typeof LoginRoute
-  RegisterRoute: typeof RegisterRoute
+  AuthRedirectRoute: typeof AuthRedirectRoute
+  LoginRoute: typeof LoginRouteWithChildren
+  RegisterRoute: typeof RegisterRouteWithChildren
+  SsoCallbackRoute: typeof SsoCallbackRoute
   AdminLoginRoute: typeof AdminLoginRoute
 }
 
@@ -228,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth-redirect': {
+      id: '/auth-redirect'
+      path: '/auth-redirect'
+      fullPath: '/auth-redirect'
+      preLoaderRoute: typeof AuthRedirectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -240,6 +297,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -305,6 +369,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login/sso-callback': {
+      id: '/login/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/login/sso-callback'
+      preLoaderRoute: typeof LoginSsoCallbackRouteImport
+      parentRoute: typeof LoginRoute
+    }
+    '/register/sso-callback': {
+      id: '/register/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/register/sso-callback'
+      preLoaderRoute: typeof RegisterSsoCallbackRouteImport
+      parentRoute: typeof RegisterRoute
+    }
     '/_authenticated/profile/$username': {
       id: '/_authenticated/profile/$username'
       path: '/profile/$username'
@@ -352,11 +430,35 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
+interface LoginRouteChildren {
+  LoginSsoCallbackRoute: typeof LoginSsoCallbackRoute
+}
+
+const LoginRouteChildren: LoginRouteChildren = {
+  LoginSsoCallbackRoute: LoginSsoCallbackRoute,
+}
+
+const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
+
+interface RegisterRouteChildren {
+  RegisterSsoCallbackRoute: typeof RegisterSsoCallbackRoute
+}
+
+const RegisterRouteChildren: RegisterRouteChildren = {
+  RegisterSsoCallbackRoute: RegisterSsoCallbackRoute,
+}
+
+const RegisterRouteWithChildren = RegisterRoute._addFileChildren(
+  RegisterRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  LoginRoute: LoginRoute,
-  RegisterRoute: RegisterRoute,
+  AuthRedirectRoute: AuthRedirectRoute,
+  LoginRoute: LoginRouteWithChildren,
+  RegisterRoute: RegisterRouteWithChildren,
+  SsoCallbackRoute: SsoCallbackRoute,
   AdminLoginRoute: AdminLoginRoute,
 }
 export const routeTree = rootRouteImport

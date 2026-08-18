@@ -11,7 +11,14 @@ function RegisterPage() {
   const { user } = useUser();
 
   useEffect(() => {
-    if (user) navigate({ to: "/home" });
+    if (user) {
+      const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress;
+      if (email === "xeancoral31@gmail.com") {
+        navigate({ to: "/admin" });
+      } else {
+        navigate({ to: "/home" });
+      }
+    }
   }, [user, navigate]);
 
   return (
@@ -47,7 +54,7 @@ function RegisterPage() {
             <span className="font-display font-bold text-xl">RantSphere</span>
           </Link>
           
-          <SignUp routing="path" path="/register" fallbackRedirectUrl="/home" signInFallbackRedirectUrl="/home" />
+          <SignUp routing="path" path="/register" fallbackRedirectUrl="/auth-redirect" signInFallbackRedirectUrl="/auth-redirect" />
         </div>
       </div>
     </div>

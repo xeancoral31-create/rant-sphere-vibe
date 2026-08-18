@@ -44,10 +44,12 @@ export function Sidebar({ onCompose }: { onCompose?: () => void }) {
           <Settings className="w-5 h-5" />
           <span>Settings</span>
         </Link>
-        <Link to="/admin" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition ${loc.pathname === "/admin" ? "bg-gradient-vivid text-white shadow-glow" : "text-sidebar-foreground hover:bg-sidebar-accent"}`}>
-          <Shield className="w-5 h-5" />
-          <span>Admin</span>
-        </Link>
+        {(user?.primaryEmailAddress?.emailAddress === "xeancoral31@gmail.com" || user?.emailAddresses?.some(e => e.emailAddress === "xeancoral31@gmail.com")) && (
+          <Link to="/admin" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition ${loc.pathname === "/admin" ? "bg-gradient-vivid text-white shadow-glow" : "text-sidebar-foreground hover:bg-sidebar-accent"}`}>
+            <Shield className="w-5 h-5 text-amber-400" />
+            <span>Admin</span>
+          </Link>
+        )}
       </nav>
 
       <button onClick={onCompose} className="mt-4 w-full rounded-full bg-gradient-vivid py-3 font-semibold text-white shadow-glow hover:scale-105 transition flex items-center justify-center gap-2">
