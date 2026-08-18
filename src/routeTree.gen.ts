@@ -16,7 +16,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
@@ -26,8 +25,10 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedTrendingRouteImport } from './routes/_authenticated/trending'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as LoginSplatRouteImport } from './routes/login.$'
+import { Route as LoginContinueRouteImport } from './routes/login.continue'
 import { Route as LoginSsoCallbackRouteImport } from './routes/login.sso-callback'
 import { Route as RegisterSplatRouteImport } from './routes/register.$'
+import { Route as RegisterContinueRouteImport } from './routes/register.continue'
 import { Route as RegisterSsoCallbackRouteImport } from './routes/register.sso-callback'
 import { Route as AuthenticatedProfileUsernameRouteImport } from './routes/_authenticated/profile.$username'
 import { Route as AuthenticatedTagTagRouteImport } from './routes/_authenticated/tag.$tag'
@@ -64,11 +65,6 @@ const SsoCallbackRoute = SsoCallbackRouteImport.update({
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
@@ -117,6 +113,11 @@ const LoginSplatRoute = LoginSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => LoginRoute,
 } as any)
+const LoginContinueRoute = LoginContinueRouteImport.update({
+  id: '/continue',
+  path: '/continue',
+  getParentRoute: () => LoginRoute,
+} as any)
 const LoginSsoCallbackRoute = LoginSsoCallbackRouteImport.update({
   id: '/sso-callback',
   path: '/sso-callback',
@@ -125,6 +126,11 @@ const LoginSsoCallbackRoute = LoginSsoCallbackRouteImport.update({
 const RegisterSplatRoute = RegisterSplatRouteImport.update({
   id: '/$',
   path: '/$',
+  getParentRoute: () => RegisterRoute,
+} as any)
+const RegisterContinueRoute = RegisterContinueRouteImport.update({
+  id: '/continue',
+  path: '/continue',
   getParentRoute: () => RegisterRoute,
 } as any)
 const RegisterSsoCallbackRoute = RegisterSsoCallbackRouteImport.update({
@@ -151,7 +157,6 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
@@ -161,8 +166,10 @@ export interface FileRoutesByFullPath {
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
   '/login/$': typeof LoginSplatRoute
+  '/login/continue': typeof LoginContinueRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
   '/register/$': typeof RegisterSplatRoute
+  '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -174,7 +181,6 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/explore': typeof AuthenticatedExploreRoute
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
@@ -184,8 +190,10 @@ export interface FileRoutesByTo {
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
   '/login/$': typeof LoginSplatRoute
+  '/login/continue': typeof LoginContinueRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
   '/register/$': typeof RegisterSplatRoute
+  '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -199,7 +207,6 @@ export interface FileRoutesById {
   '/register': typeof RegisterRouteWithChildren
   '/sso-callback': typeof SsoCallbackRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
@@ -209,8 +216,10 @@ export interface FileRoutesById {
   '/_authenticated/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
   '/login/$': typeof LoginSplatRoute
+  '/login/continue': typeof LoginContinueRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
   '/register/$': typeof RegisterSplatRoute
+  '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/_authenticated/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/_authenticated/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -224,7 +233,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/admin'
-    | '/dashboard'
     | '/explore'
     | '/home'
     | '/messages'
@@ -234,8 +242,10 @@ export interface FileRouteTypes {
     | '/trending'
     | '/admin/login'
     | '/login/$'
+    | '/login/continue'
     | '/login/sso-callback'
     | '/register/$'
+    | '/register/continue'
     | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
@@ -247,7 +257,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/admin'
-    | '/dashboard'
     | '/explore'
     | '/home'
     | '/messages'
@@ -257,8 +266,10 @@ export interface FileRouteTypes {
     | '/trending'
     | '/admin/login'
     | '/login/$'
+    | '/login/continue'
     | '/login/sso-callback'
     | '/register/$'
+    | '/register/continue'
     | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
@@ -271,7 +282,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/sso-callback'
     | '/_authenticated/admin'
-    | '/_authenticated/dashboard'
     | '/_authenticated/explore'
     | '/_authenticated/home'
     | '/_authenticated/messages'
@@ -281,8 +291,10 @@ export interface FileRouteTypes {
     | '/_authenticated/trending'
     | '/admin/login'
     | '/login/$'
+    | '/login/continue'
     | '/login/sso-callback'
     | '/register/$'
+    | '/register/continue'
     | '/register/sso-callback'
     | '/_authenticated/profile/$username'
     | '/_authenticated/tag/$tag'
@@ -349,13 +361,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/explore': {
       id: '/_authenticated/explore'
       path: '/explore'
@@ -419,6 +424,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSplatRouteImport
       parentRoute: typeof LoginRoute
     }
+    '/login/continue': {
+      id: '/login/continue'
+      path: '/continue'
+      fullPath: '/login/continue'
+      preLoaderRoute: typeof LoginContinueRouteImport
+      parentRoute: typeof LoginRoute
+    }
     '/login/sso-callback': {
       id: '/login/sso-callback'
       path: '/sso-callback'
@@ -431,6 +443,13 @@ declare module '@tanstack/react-router' {
       path: '/$'
       fullPath: '/register/$'
       preLoaderRoute: typeof RegisterSplatRouteImport
+      parentRoute: typeof RegisterRoute
+    }
+    '/register/continue': {
+      id: '/register/continue'
+      path: '/continue'
+      fullPath: '/register/continue'
+      preLoaderRoute: typeof RegisterContinueRouteImport
       parentRoute: typeof RegisterRoute
     }
     '/register/sso-callback': {
@@ -459,7 +478,6 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
@@ -473,7 +491,6 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
@@ -491,11 +508,13 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface LoginRouteChildren {
   LoginSplatRoute: typeof LoginSplatRoute
+  LoginContinueRoute: typeof LoginContinueRoute
   LoginSsoCallbackRoute: typeof LoginSsoCallbackRoute
 }
 
 const LoginRouteChildren: LoginRouteChildren = {
   LoginSplatRoute: LoginSplatRoute,
+  LoginContinueRoute: LoginContinueRoute,
   LoginSsoCallbackRoute: LoginSsoCallbackRoute,
 }
 
@@ -503,11 +522,13 @@ const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
 
 interface RegisterRouteChildren {
   RegisterSplatRoute: typeof RegisterSplatRoute
+  RegisterContinueRoute: typeof RegisterContinueRoute
   RegisterSsoCallbackRoute: typeof RegisterSsoCallbackRoute
 }
 
 const RegisterRouteChildren: RegisterRouteChildren = {
   RegisterSplatRoute: RegisterSplatRoute,
+  RegisterContinueRoute: RegisterContinueRoute,
   RegisterSsoCallbackRoute: RegisterSsoCallbackRoute,
 }
 

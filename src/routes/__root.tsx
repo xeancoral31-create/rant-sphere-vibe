@@ -10,8 +10,6 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { CallProvider } from "@/components/call/CallProvider";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { useAuth } from "@clerk/tanstack-react-start";
 
 import appCss from "../styles.css?url";
 
@@ -128,22 +126,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const { isSignedIn } = useAuth();
   
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <CallProvider>
-          {isSignedIn ? (
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-1 md:pl-64">
-                <Outlet />
-              </main>
-            </div>
-          ) : (
-            <Outlet />
-          )}
+          <Outlet />
           <Toaster position="top-right" />
         </CallProvider>
       </AuthProvider>
