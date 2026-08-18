@@ -25,7 +25,9 @@ import { Route as AuthenticatedSearchRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedTrendingRouteImport } from './routes/_authenticated/trending'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as LoginSplatRouteImport } from './routes/login.$'
 import { Route as LoginSsoCallbackRouteImport } from './routes/login.sso-callback'
+import { Route as RegisterSplatRouteImport } from './routes/register.$'
 import { Route as RegisterSsoCallbackRouteImport } from './routes/register.sso-callback'
 import { Route as AuthenticatedProfileUsernameRouteImport } from './routes/_authenticated/profile.$username'
 import { Route as AuthenticatedTagTagRouteImport } from './routes/_authenticated/tag.$tag'
@@ -110,10 +112,20 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginSplatRoute = LoginSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => LoginRoute,
+} as any)
 const LoginSsoCallbackRoute = LoginSsoCallbackRouteImport.update({
   id: '/sso-callback',
   path: '/sso-callback',
   getParentRoute: () => LoginRoute,
+} as any)
+const RegisterSplatRoute = RegisterSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => RegisterRoute,
 } as any)
 const RegisterSsoCallbackRoute = RegisterSsoCallbackRouteImport.update({
   id: '/sso-callback',
@@ -148,7 +160,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/$': typeof LoginSplatRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/$': typeof RegisterSplatRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -169,7 +183,9 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/$': typeof LoginSplatRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/$': typeof RegisterSplatRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -192,7 +208,9 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/trending': typeof AuthenticatedTrendingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/login/$': typeof LoginSplatRoute
   '/login/sso-callback': typeof LoginSsoCallbackRoute
+  '/register/$': typeof RegisterSplatRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
   '/_authenticated/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/_authenticated/tag/$tag': typeof AuthenticatedTagTagRoute
@@ -215,7 +233,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trending'
     | '/admin/login'
+    | '/login/$'
     | '/login/sso-callback'
+    | '/register/$'
     | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
@@ -236,7 +256,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/trending'
     | '/admin/login'
+    | '/login/$'
     | '/login/sso-callback'
+    | '/register/$'
     | '/register/sso-callback'
     | '/profile/$username'
     | '/tag/$tag'
@@ -258,7 +280,9 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/trending'
     | '/admin/login'
+    | '/login/$'
     | '/login/sso-callback'
+    | '/register/$'
     | '/register/sso-callback'
     | '/_authenticated/profile/$username'
     | '/_authenticated/tag/$tag'
@@ -388,12 +412,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login/$': {
+      id: '/login/$'
+      path: '/$'
+      fullPath: '/login/$'
+      preLoaderRoute: typeof LoginSplatRouteImport
+      parentRoute: typeof LoginRoute
+    }
     '/login/sso-callback': {
       id: '/login/sso-callback'
       path: '/sso-callback'
       fullPath: '/login/sso-callback'
       preLoaderRoute: typeof LoginSsoCallbackRouteImport
       parentRoute: typeof LoginRoute
+    }
+    '/register/$': {
+      id: '/register/$'
+      path: '/$'
+      fullPath: '/register/$'
+      preLoaderRoute: typeof RegisterSplatRouteImport
+      parentRoute: typeof RegisterRoute
     }
     '/register/sso-callback': {
       id: '/register/sso-callback'
@@ -452,20 +490,24 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface LoginRouteChildren {
+  LoginSplatRoute: typeof LoginSplatRoute
   LoginSsoCallbackRoute: typeof LoginSsoCallbackRoute
 }
 
 const LoginRouteChildren: LoginRouteChildren = {
+  LoginSplatRoute: LoginSplatRoute,
   LoginSsoCallbackRoute: LoginSsoCallbackRoute,
 }
 
 const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
 
 interface RegisterRouteChildren {
+  RegisterSplatRoute: typeof RegisterSplatRoute
   RegisterSsoCallbackRoute: typeof RegisterSsoCallbackRoute
 }
 
 const RegisterRouteChildren: RegisterRouteChildren = {
+  RegisterSplatRoute: RegisterSplatRoute,
   RegisterSsoCallbackRoute: RegisterSsoCallbackRoute,
 }
 

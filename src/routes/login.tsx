@@ -6,7 +6,7 @@ import { Logo } from "@/components/brand/Logo";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
-function LoginPage() {
+export function LoginPage() {
   const navigate = useNavigate();
   const { user } = useUser();
 
