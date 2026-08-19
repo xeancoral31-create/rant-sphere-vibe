@@ -17,6 +17,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
+import { Route as AuthenticatedFriendsRouteImport } from './routes/_authenticated/friends'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
@@ -30,8 +31,13 @@ import { Route as LoginSsoCallbackRouteImport } from './routes/login.sso-callbac
 import { Route as RegisterSplatRouteImport } from './routes/register.$'
 import { Route as RegisterContinueRouteImport } from './routes/register.continue'
 import { Route as RegisterSsoCallbackRouteImport } from './routes/register.sso-callback'
+import { Route as AuthenticatedFriendsCreateGroupRouteImport } from './routes/_authenticated/friends.create-group'
 import { Route as AuthenticatedProfileUsernameRouteImport } from './routes/_authenticated/profile.$username'
 import { Route as AuthenticatedTagTagRouteImport } from './routes/_authenticated/tag.$tag'
+import { Route as AuthenticatedGroupsGroupIdChatRouteImport } from './routes/_authenticated/groups.$groupId.chat'
+import { Route as AuthenticatedGroupsGroupIdMapRouteImport } from './routes/_authenticated/groups.$groupId.map'
+import { Route as AuthenticatedGroupsGroupIdMediaRouteImport } from './routes/_authenticated/groups.$groupId.media'
+import { Route as AuthenticatedGroupsGroupIdSettingsRouteImport } from './routes/_authenticated/groups.$groupId.settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,6 +76,11 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
 const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedFriendsRoute = AuthenticatedFriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
@@ -138,6 +149,12 @@ const RegisterSsoCallbackRoute = RegisterSsoCallbackRouteImport.update({
   path: '/sso-callback',
   getParentRoute: () => RegisterRoute,
 } as any)
+const AuthenticatedFriendsCreateGroupRoute =
+  AuthenticatedFriendsCreateGroupRouteImport.update({
+    id: '/create-group',
+    path: '/create-group',
+    getParentRoute: () => AuthenticatedFriendsRoute,
+  } as any)
 const AuthenticatedProfileUsernameRoute =
   AuthenticatedProfileUsernameRouteImport.update({
     id: '/profile/$username',
@@ -149,6 +166,30 @@ const AuthenticatedTagTagRoute = AuthenticatedTagTagRouteImport.update({
   path: '/tag/$tag',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedGroupsGroupIdChatRoute =
+  AuthenticatedGroupsGroupIdChatRouteImport.update({
+    id: '/groups/$groupId/chat',
+    path: '/groups/$groupId/chat',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGroupsGroupIdMapRoute =
+  AuthenticatedGroupsGroupIdMapRouteImport.update({
+    id: '/groups/$groupId/map',
+    path: '/groups/$groupId/map',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGroupsGroupIdMediaRoute =
+  AuthenticatedGroupsGroupIdMediaRouteImport.update({
+    id: '/groups/$groupId/media',
+    path: '/groups/$groupId/media',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGroupsGroupIdSettingsRoute =
+  AuthenticatedGroupsGroupIdSettingsRouteImport.update({
+    id: '/groups/$groupId/settings',
+    path: '/groups/$groupId/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -158,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/friends': typeof AuthenticatedFriendsRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -171,8 +213,13 @@ export interface FileRoutesByFullPath {
   '/register/$': typeof RegisterSplatRoute
   '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
+  '/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
+  '/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
+  '/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
+  '/groups/$groupId/settings': typeof AuthenticatedGroupsGroupIdSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -182,6 +229,7 @@ export interface FileRoutesByTo {
   '/sso-callback': typeof SsoCallbackRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/explore': typeof AuthenticatedExploreRoute
+  '/friends': typeof AuthenticatedFriendsRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -195,8 +243,13 @@ export interface FileRoutesByTo {
   '/register/$': typeof RegisterSplatRoute
   '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
+  '/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
+  '/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
+  '/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
+  '/groups/$groupId/settings': typeof AuthenticatedGroupsGroupIdSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -208,6 +261,7 @@ export interface FileRoutesById {
   '/sso-callback': typeof SsoCallbackRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/explore': typeof AuthenticatedExploreRoute
+  '/_authenticated/friends': typeof AuthenticatedFriendsRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
@@ -221,8 +275,13 @@ export interface FileRoutesById {
   '/register/$': typeof RegisterSplatRoute
   '/register/continue': typeof RegisterContinueRoute
   '/register/sso-callback': typeof RegisterSsoCallbackRoute
+  '/_authenticated/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/_authenticated/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/_authenticated/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/_authenticated/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
+  '/_authenticated/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
+  '/_authenticated/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
+  '/_authenticated/groups/$groupId/settings': typeof AuthenticatedGroupsGroupIdSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,6 +293,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/admin'
     | '/explore'
+    | '/friends'
     | '/home'
     | '/messages'
     | '/notifications'
@@ -247,8 +307,13 @@ export interface FileRouteTypes {
     | '/register/$'
     | '/register/continue'
     | '/register/sso-callback'
+    | '/friends/create-group'
     | '/profile/$username'
     | '/tag/$tag'
+    | '/groups/$groupId/chat'
+    | '/groups/$groupId/map'
+    | '/groups/$groupId/media'
+    | '/groups/$groupId/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -258,6 +323,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/admin'
     | '/explore'
+    | '/friends'
     | '/home'
     | '/messages'
     | '/notifications'
@@ -271,8 +337,13 @@ export interface FileRouteTypes {
     | '/register/$'
     | '/register/continue'
     | '/register/sso-callback'
+    | '/friends/create-group'
     | '/profile/$username'
     | '/tag/$tag'
+    | '/groups/$groupId/chat'
+    | '/groups/$groupId/map'
+    | '/groups/$groupId/media'
+    | '/groups/$groupId/settings'
   id:
     | '__root__'
     | '/'
@@ -283,6 +354,7 @@ export interface FileRouteTypes {
     | '/sso-callback'
     | '/_authenticated/admin'
     | '/_authenticated/explore'
+    | '/_authenticated/friends'
     | '/_authenticated/home'
     | '/_authenticated/messages'
     | '/_authenticated/notifications'
@@ -296,8 +368,13 @@ export interface FileRouteTypes {
     | '/register/$'
     | '/register/continue'
     | '/register/sso-callback'
+    | '/_authenticated/friends/create-group'
     | '/_authenticated/profile/$username'
     | '/_authenticated/tag/$tag'
+    | '/_authenticated/groups/$groupId/chat'
+    | '/_authenticated/groups/$groupId/map'
+    | '/_authenticated/groups/$groupId/media'
+    | '/_authenticated/groups/$groupId/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -366,6 +443,13 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof AuthenticatedExploreRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/friends': {
+      id: '/_authenticated/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof AuthenticatedFriendsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/home': {
@@ -459,6 +543,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterSsoCallbackRouteImport
       parentRoute: typeof RegisterRoute
     }
+    '/_authenticated/friends/create-group': {
+      id: '/_authenticated/friends/create-group'
+      path: '/create-group'
+      fullPath: '/friends/create-group'
+      preLoaderRoute: typeof AuthenticatedFriendsCreateGroupRouteImport
+      parentRoute: typeof AuthenticatedFriendsRoute
+    }
     '/_authenticated/profile/$username': {
       id: '/_authenticated/profile/$username'
       path: '/profile/$username'
@@ -473,12 +564,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTagTagRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/groups/$groupId/chat': {
+      id: '/_authenticated/groups/$groupId/chat'
+      path: '/groups/$groupId/chat'
+      fullPath: '/groups/$groupId/chat'
+      preLoaderRoute: typeof AuthenticatedGroupsGroupIdChatRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/groups/$groupId/map': {
+      id: '/_authenticated/groups/$groupId/map'
+      path: '/groups/$groupId/map'
+      fullPath: '/groups/$groupId/map'
+      preLoaderRoute: typeof AuthenticatedGroupsGroupIdMapRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/groups/$groupId/media': {
+      id: '/_authenticated/groups/$groupId/media'
+      path: '/groups/$groupId/media'
+      fullPath: '/groups/$groupId/media'
+      preLoaderRoute: typeof AuthenticatedGroupsGroupIdMediaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/groups/$groupId/settings': {
+      id: '/_authenticated/groups/$groupId/settings'
+      path: '/groups/$groupId/settings'
+      fullPath: '/groups/$groupId/settings'
+      preLoaderRoute: typeof AuthenticatedGroupsGroupIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
+
+interface AuthenticatedFriendsRouteChildren {
+  AuthenticatedFriendsCreateGroupRoute: typeof AuthenticatedFriendsCreateGroupRoute
+}
+
+const AuthenticatedFriendsRouteChildren: AuthenticatedFriendsRouteChildren = {
+  AuthenticatedFriendsCreateGroupRoute: AuthenticatedFriendsCreateGroupRoute,
+}
+
+const AuthenticatedFriendsRouteWithChildren =
+  AuthenticatedFriendsRoute._addFileChildren(AuthenticatedFriendsRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
+  AuthenticatedFriendsRoute: typeof AuthenticatedFriendsRouteWithChildren
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
@@ -487,11 +618,16 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTrendingRoute: typeof AuthenticatedTrendingRoute
   AuthenticatedProfileUsernameRoute: typeof AuthenticatedProfileUsernameRoute
   AuthenticatedTagTagRoute: typeof AuthenticatedTagTagRoute
+  AuthenticatedGroupsGroupIdChatRoute: typeof AuthenticatedGroupsGroupIdChatRoute
+  AuthenticatedGroupsGroupIdMapRoute: typeof AuthenticatedGroupsGroupIdMapRoute
+  AuthenticatedGroupsGroupIdMediaRoute: typeof AuthenticatedGroupsGroupIdMediaRoute
+  AuthenticatedGroupsGroupIdSettingsRoute: typeof AuthenticatedGroupsGroupIdSettingsRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedExploreRoute: AuthenticatedExploreRoute,
+  AuthenticatedFriendsRoute: AuthenticatedFriendsRouteWithChildren,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
@@ -500,6 +636,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTrendingRoute: AuthenticatedTrendingRoute,
   AuthenticatedProfileUsernameRoute: AuthenticatedProfileUsernameRoute,
   AuthenticatedTagTagRoute: AuthenticatedTagTagRoute,
+  AuthenticatedGroupsGroupIdChatRoute: AuthenticatedGroupsGroupIdChatRoute,
+  AuthenticatedGroupsGroupIdMapRoute: AuthenticatedGroupsGroupIdMapRoute,
+  AuthenticatedGroupsGroupIdMediaRoute: AuthenticatedGroupsGroupIdMediaRoute,
+  AuthenticatedGroupsGroupIdSettingsRoute:
+    AuthenticatedGroupsGroupIdSettingsRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

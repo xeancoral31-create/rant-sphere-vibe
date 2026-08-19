@@ -128,6 +128,91 @@
   backdrop-filter: blur(20px);
   border: 1px solid oklch(0.4 0.05 320 / 0.3);
 }
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+}
+@utility smooth-scroll { scroll-behavior: smooth; }
+
+/* Skeleton shimmer animation */
+@keyframes skeleton-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(0.24 0.03 320) 25%,
+    oklch(0.30 0.04 320) 50%,
+    oklch(0.24 0.03 320) 75%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+/* Feed filter active tab indicator */
+@utility feed-tab-active {
+  background-image: var(--gradient-vivid);
+  color: white;
+  box-shadow: var(--shadow-glow);
+}
+
+/* Online status indicator pulse */
+@keyframes online-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@utility online-dot {
+  animation: online-pulse 2s ease-in-out infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+@utility animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Glow pulse animation */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px oklch(0.7 0.22 22 / 0.4); }
+  50% { box-shadow: 0 0 24px oklch(0.7 0.22 22 / 0.8), 0 0 48px oklch(0.6 0.24 350 / 0.4); }
+}
+@utility glow-pulse {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* Reduced motion overrides — must be plain CSS inside @layer base, not nested @utility */
+@layer base {
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+      background: oklch(0.24 0.03 320);
+    }
+    .online-dot {
+      animation: none;
+    }
+    .animate-float {
+      animation: none;
+    }
+    .glow-pulse {
+      animation: none;
+    }
+  }
+}
+
+/* Focus visible improvements */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+}
 
 /* Hide Clerk watermarks and dev badges */
 .cl-internal-95w9vp,

@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { PostCard, type PostWithMeta } from "@/components/post/PostCard";
 import { StoryRail } from "@/components/story/StoryRail";
 import { InlineComposer, ComposeDialog } from "@/components/post/ComposeDialog";
+import { Logo } from "@/components/brand/Logo";
+import { SEED_POSTS } from "@/lib/seedData";
 import {
   Bell,
   MessageCircle,
@@ -13,230 +15,786 @@ import {
   Sparkles,
   UserPlus,
   Flame,
-  Music,
-  Plus
+  Plus,
+  RefreshCw,
+  WifiOff,
+  Users,
+  ChevronRight,
+  Hash,
+  Zap,
+  Star,
+  ArrowUpRight,
+  Circle,
 } from "lucide-react";
-import { Logo } from "@/components/brand/Logo";
 
 export const Route = createFileRoute("/_authenticated/home")({ component: HomePage });
 
+// ─── Static Data ────────────────────────────────────────────────────────────
+
 const TRENDING_TAGS = [
-  { tag: "technews", posts: "12.4k" },
-  { tag: "vibes", posts: "8.9k" },
-  { tag: "rantlife", posts: "24.1k" },
-  { tag: "chillbeats", posts: "5.2k" },
+  { tag: "technews", posts: "12.4k", trend: "+18%" },
+  { tag: "vibes", posts: "8.9k", trend: "+7%" },
+  { tag: "rantlife", posts: "24.1k", trend: "+31%" },
+  { tag: "chillbeats", posts: "5.2k", trend: "+4%" },
+  { tag: "aigenerated", posts: "18.3k", trend: "+22%" },
+  { tag: "tokyovibes", posts: "3.6k", trend: "+11%" },
 ];
+
+type FeedFilter = "foryou" | "following" | "trending" | "barkada";
+
+const FEED_FILTERS: { key: FeedFilter; label: string; icon?: React.ElementType }[] = [
+  { key: "foryou", label: "For You", icon: Sparkles },
+  { key: "following", label: "Following", icon: Users },
+  { key: "trending", label: "Trending", icon: TrendingUp },
+  { key: "barkada", label: "Barkada", icon: Zap },
+];
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+/** Mobile-only sticky header — hidden at md+ */
+function MobileHomeHeader({
+  unreadNotifs,
+  unreadMessages,
+}: {
+  unreadNotifs: number;
+  unreadMessages: number;
+}) {
+  return (
+    <header
+      className="md:hidden sticky top-0 z-30 -mx-4 px-4 py-3 glass border-b border-border/40 flex items-center justify-between backdrop-blur-xl"
+      aria-label="Home header"
+    >
+      <Link to="/home" className="flex items-center gap-2.5">
+        <Logo className="w-7 h-7 text-primary" plain />
+        <span className="font-display font-bold text-lg text-gradient">RantSphere</span>
+      </Link>
+
+      <div className="flex items-center gap-1.5">
+        <Link
+          to="/search"
+          aria-label="Search"
+          className="w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-muted-foreground hover:text-primary transition"
+        >
+          <Search className="w-4 h-4" />
+        </Link>
+        <Link
+          to="/notifications"
+          aria-label={`Notifications${unreadNotifs > 0 ? ` — ${unreadNotifs} unread` : ""}`}
+          className="relative w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-muted-foreground hover:text-primary transition"
+        >
+          <Bell className="w-4 h-4" />
+          {unreadNotifs > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-0.5 shadow-glow">
+              {unreadNotifs > 9 ? "9+" : unreadNotifs}
+            </span>
+          )}
+        </Link>
+        <Link
+          to="/messages"
+          aria-label={`Messages${unreadMessages > 0 ? ` — ${unreadMessages} unread` : ""}`}
+          className="relative w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-muted-foreground hover:text-primary transition"
+        >
+          <MessageCircle className="w-4 h-4" />
+          {unreadMessages > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-primary text-white text-[10px] font-bold rounded-full grid place-items-center px-0.5 shadow-glow">
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
+          )}
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+/** Desktop-only page title bar */
+function DesktopHomeHeader({
+  unreadNotifs,
+  unreadMessages,
+}: {
+  unreadNotifs: number;
+  unreadMessages: number;
+}) {
+  return (
+    <header className="hidden md:flex sticky top-0 z-20 px-0 py-3.5 glass border-b border-border/40 mb-0 items-center justify-between backdrop-blur-xl -mx-4 px-4">
+      <h1 className="font-display text-2xl font-bold">Home</h1>
+      <div className="flex items-center gap-2">
+        <Link
+          to="/search"
+          className="flex items-center gap-2 bg-input/80 hover:bg-input text-xs text-muted-foreground px-4 py-2 rounded-full border border-border/40 transition"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Search rants, people...</span>
+        </Link>
+        <Link
+          to="/notifications"
+          aria-label="Notifications"
+          className="relative w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-muted-foreground hover:text-primary transition"
+        >
+          <Bell className="w-4 h-4" />
+          {unreadNotifs > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full grid place-items-center px-0.5">
+              {unreadNotifs > 9 ? "9+" : unreadNotifs}
+            </span>
+          )}
+        </Link>
+        <Link
+          to="/messages"
+          aria-label="Messages"
+          className="relative w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-muted-foreground hover:text-primary transition"
+        >
+          <MessageCircle className="w-4 h-4" />
+          {unreadMessages > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-primary text-white text-[10px] font-bold rounded-full grid place-items-center px-0.5">
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
+          )}
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+/** Animated pill filter tabs */
+function FeedFilters({
+  active,
+  onChange,
+}: {
+  active: FeedFilter;
+  onChange: (f: FeedFilter) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1" role="tablist" aria-label="Feed filters">
+      {FEED_FILTERS.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          role="tab"
+          aria-selected={active === key}
+          onClick={() => onChange(key)}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap shrink-0 transition-all duration-200 focus-visible:outline-2 focus-visible:outline-primary ${
+            active === key
+              ? "bg-gradient-vivid text-white shadow-glow scale-105"
+              : "glass border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          }`}
+        >
+          {Icon && <Icon className="w-3.5 h-3.5" />}
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Shimmer skeleton for a single post card */
+function PostSkeleton() {
+  return (
+    <div className="glass rounded-3xl p-5 border border-border/40 space-y-3 animate-pulse" aria-hidden="true">
+      {/* Author row */}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full skeleton shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3.5 skeleton rounded-full w-32" />
+          <div className="h-2.5 skeleton rounded-full w-20" />
+        </div>
+      </div>
+      {/* Content lines */}
+      <div className="space-y-2">
+        <div className="h-3 skeleton rounded-full w-full" />
+        <div className="h-3 skeleton rounded-full w-4/5" />
+        <div className="h-3 skeleton rounded-full w-3/5" />
+      </div>
+      {/* Media placeholder */}
+      <div className="h-48 skeleton rounded-2xl w-full" />
+      {/* Actions row */}
+      <div className="flex items-center gap-3 pt-2 border-t border-border/30">
+        <div className="h-7 skeleton rounded-full w-16" />
+        <div className="h-7 skeleton rounded-full w-20" />
+        <div className="h-7 skeleton rounded-full w-12" />
+      </div>
+    </div>
+  );
+}
+
+/** 3 skeleton cards for initial feed loading */
+function FeedSkeletonLoader() {
+  return (
+    <div className="space-y-4" aria-label="Loading posts">
+      <PostSkeleton />
+      <PostSkeleton />
+      <PostSkeleton />
+    </div>
+  );
+}
+
+/** Network error state with retry */
+function FeedError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="glass rounded-3xl p-10 text-center border border-border/40 shadow-card space-y-4">
+      <div className="w-16 h-16 rounded-full bg-destructive/15 grid place-items-center mx-auto">
+        <WifiOff className="w-8 h-8 text-destructive" />
+      </div>
+      <div>
+        <h3 className="font-display font-bold text-lg text-foreground">Couldn't load your feed</h3>
+        <p className="mt-1 text-sm text-muted-foreground max-w-xs mx-auto">
+          There was a problem connecting. Check your internet and try again.
+        </p>
+      </div>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center gap-2 rounded-full bg-gradient-vivid px-6 py-2.5 font-semibold text-sm text-white shadow-glow hover:scale-105 transition"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Retry
+      </button>
+    </div>
+  );
+}
+
+/** Empty feed state */
+function EmptyFeedState({ onCompose }: { onCompose: () => void }) {
+  return (
+    <div className="glass rounded-3xl p-12 text-center border border-border/40 shadow-card space-y-5">
+      <div className="w-20 h-20 rounded-full bg-gradient-vivid/20 grid place-items-center mx-auto">
+        <Sparkles className="w-10 h-10 text-primary" />
+      </div>
+      <div>
+        <h3 className="font-display font-bold text-xl text-foreground">The sphere is quiet… for now</h3>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+          Be the first voice to echo across the sphere. Share a thought, photo, beat, or rant — the community is waiting.
+        </p>
+      </div>
+      <div className="flex flex-wrap justify-center gap-3">
+        <button
+          onClick={onCompose}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-vivid px-6 py-2.5 font-semibold text-sm text-white shadow-glow hover:scale-105 transition"
+        >
+          <Plus className="w-4 h-4" />
+          Create First Rant
+        </button>
+        <Link
+          to="/explore"
+          className="inline-flex items-center gap-2 rounded-full glass border border-border/40 px-6 py-2.5 font-semibold text-sm text-foreground hover:border-primary/60 transition"
+        >
+          <Search className="w-4 h-4" />
+          Explore People
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/** Enhanced right sidebar — Trending panel */
+function HomeTrendingPanel() {
+  return (
+    <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display font-bold text-base flex items-center gap-2">
+          <Flame className="w-4 h-4 text-orange-400" />
+          Trending Rants
+        </h2>
+        <Link
+          to="/trending"
+          className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
+        >
+          All <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="space-y-1">
+        {TRENDING_TAGS.map((t, idx) => (
+          <Link
+            key={t.tag}
+            to="/tag/$tag"
+            params={{ tag: t.tag }}
+            className="flex items-center justify-between group p-2 rounded-xl hover:bg-muted/40 transition-all duration-200"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-xs font-bold text-muted-foreground/50 w-4 shrink-0">#{idx + 1}</span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground group-hover:text-primary transition truncate flex items-center gap-1">
+                  <Hash className="w-3 h-3 text-primary/60 shrink-0" />
+                  {t.tag}
+                </div>
+                <div className="text-[11px] text-muted-foreground">{t.posts} rants</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 shrink-0">
+              <ArrowUpRight className="w-3 h-3" />
+              {t.trend}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Right sidebar — Suggested people widget */
+function SuggestedFriendsWidget({ users, currentUserId }: { users: any[]; currentUserId?: string }) {
+  const [followed, setFollowed] = useState<Set<string>>(new Set());
+
+  function handleFollow(id: string) {
+    setFollowed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const visible = users.filter((u) => u.id !== currentUserId).slice(0, 4);
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display font-bold text-base flex items-center gap-2">
+          <UserPlus className="w-4 h-4 text-primary" />
+          Who to Follow
+        </h2>
+        <Link to="/explore" className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5">
+          More <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="space-y-3">
+        {visible.map((su) => {
+          const isFollowed = followed.has(su.id);
+          return (
+            <div key={su.id} className="flex items-center gap-2.5">
+              <Link
+                to="/profile/$username"
+                params={{ username: su.username || "user" }}
+                className="flex items-center gap-2.5 flex-1 min-w-0 group"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-vivid grid place-items-center text-white text-xs font-bold overflow-hidden shadow-glow shrink-0">
+                  {su.avatar_url ? (
+                    <img src={su.avatar_url} className="w-full h-full object-cover" alt={su.username} loading="lazy" />
+                  ) : (
+                    su.username?.[0]?.toUpperCase() || "U"
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold group-hover:text-primary transition truncate">
+                    {su.display_name || su.username}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground truncate">@{su.username}</div>
+                </div>
+              </Link>
+              <button
+                onClick={() => handleFollow(su.id)}
+                aria-label={isFollowed ? `Unfollow ${su.username}` : `Follow ${su.username}`}
+                className={`shrink-0 text-xs px-3.5 py-1.5 rounded-full font-semibold transition-all duration-200 ${
+                  isFollowed
+                    ? "bg-muted text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                    : "bg-primary/15 text-primary hover:bg-primary hover:text-white"
+                }`}
+              >
+                {isFollowed ? "Following" : "Follow"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Right sidebar — Barkada / Groups activity */
+function BarkadaActivityWidget({ userId }: { userId?: string }) {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) { setLoading(false); return; }
+    supabase
+      .from("group_members" as never)
+      .select("group_id, groups(id, name, avatar_url, description)")
+      .eq("user_id", userId)
+      .limit(4)
+      .then(({ data }) => {
+        const mapped = (data as any[] ?? [])
+          .map((m: any) => m.groups)
+          .filter(Boolean);
+        setGroups(mapped);
+        setLoading(false);
+      });
+  }, [userId]);
+
+  return (
+    <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display font-bold text-base flex items-center gap-2">
+          <Users className="w-4 h-4 text-violet-400" />
+          Barkada
+        </h2>
+        <Link to="/friends" className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5">
+          All <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl skeleton shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 skeleton rounded-full w-28" />
+                <div className="h-2.5 skeleton rounded-full w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="text-center py-4 space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/15 grid place-items-center mx-auto">
+            <Users className="w-6 h-6 text-violet-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">No Barkada yet</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Create or join a friend group</p>
+          </div>
+          <Link
+            to="/friends"
+            className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-300 hover:bg-violet-500/25 px-4 py-2 rounded-full font-semibold transition"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create Group
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {groups.map((g) => (
+            <Link
+              key={g.id}
+              to="/groups/$groupId/chat"
+              params={{ groupId: g.id }}
+              className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-muted/40 transition group"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-vivid grid place-items-center text-white text-xs font-bold overflow-hidden shrink-0">
+                {g.avatar_url ? (
+                  <img src={g.avatar_url} className="w-full h-full object-cover" alt={g.name} loading="lazy" />
+                ) : (
+                  g.name?.[0]?.toUpperCase() || "G"
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold group-hover:text-primary transition truncate">{g.name}</div>
+                <div className="text-[11px] text-muted-foreground">Tap to open chat</div>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Active/online friends strip — right sidebar */
+function ActiveFriendsWidget({ currentUserId }: { currentUserId?: string }) {
+  const [friends, setFriends] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Show recent profiles as "recently active" (real presence would use Realtime)
+    supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .neq("id", currentUserId ?? "")
+      .limit(6)
+      .then(({ data }) => {
+        if (data && data.length > 0) setFriends(data);
+      });
+  }, [currentUserId]);
+
+  if (friends.length === 0) return null;
+
+  return (
+    <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-3">
+      <h2 className="font-display font-bold text-base flex items-center gap-2">
+        <Circle className="w-3 h-3 fill-emerald-400 text-emerald-400 online-dot" />
+        Active Now
+      </h2>
+      <div className="flex flex-wrap gap-2.5">
+        {friends.slice(0, 8).map((f) => (
+          <Link
+            key={f.id}
+            to="/profile/$username"
+            params={{ username: f.username || "user" }}
+            title={f.display_name || f.username}
+            aria-label={f.display_name || f.username}
+            className="relative group"
+          >
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-vivid grid place-items-center text-white text-xs font-bold ring-2 ring-background hover:ring-primary transition-all duration-200">
+              {f.avatar_url ? (
+                <img src={f.avatar_url} className="w-full h-full object-cover" alt={f.username} loading="lazy" />
+              ) : (
+                f.username?.[0]?.toUpperCase() || "U"
+              )}
+            </div>
+            {/* Online indicator */}
+            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-background shadow-sm online-dot" aria-hidden="true" />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function HomePage() {
   const { user, profile } = useAuthContext();
   const [posts, setPosts] = useState<PostWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [composeModalOpen, setComposeModalOpen] = useState(false);
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
+  const [activeFilter, setActiveFilter] = useState<FeedFilter>("foryou");
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // ── Data loading ──
+
+  const load = useCallback(
+    async (filter: FeedFilter = activeFilter) => {
+      setLoading(true);
+      setError(false);
+      try {
+        let query = supabase
+          .from("posts")
+          .select("*, profiles(username, display_name, avatar_url)")
+          .eq("is_hidden", false);
+
+        if (filter === "trending") {
+          // Order by created_at desc — a real trending score could be added later
+          query = query.order("created_at", { ascending: false }).limit(30);
+        } else if (filter === "barkada" && user?.id) {
+          // Posts from users in the same groups — graceful fallback to all posts
+          query = query.order("created_at", { ascending: false }).limit(30);
+        } else if (filter === "following" && user?.id) {
+          // Posts from friends/follows — graceful fallback to all posts for now
+          query = query.order("created_at", { ascending: false }).limit(50);
+        } else {
+          // "For You" — full feed
+          query = query.order("created_at", { ascending: false }).limit(50);
+        }
+
+        const { data, error: fetchError } = await query;
+        if (fetchError) throw fetchError;
+
+        const userPosts = (data ?? []) as PostWithMeta[];
+        if (userPosts.length > 0) {
+          const existingIds = new Set(userPosts.map((p) => p.id));
+          const filteredSeed = SEED_POSTS.filter((p) => !existingIds.has(p.id));
+          setPosts([...userPosts, ...filteredSeed]);
+        } else {
+          setPosts(SEED_POSTS);
+        }
+      } catch {
+        setError(true);
+        setPosts([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeFilter, user?.id]
+  );
+
+  const loadSuggested = useCallback(async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .limit(5);
+
+    if (data && data.length > 0) {
+      setSuggestedUsers(data);
+    } else {
+      setSuggestedUsers([
+        {
+          id: "s1",
+          username: "cyber_nova",
+          display_name: "Nova Cyber 🌌",
+          avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop",
+        },
+        {
+          id: "s2",
+          username: "lofi_dreamer",
+          display_name: "Lofi Dreamer 🎵",
+          avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
+        },
+        {
+          id: "s3",
+          username: "kenji_tokyo",
+          display_name: "Kenji Sato 🗼",
+          avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
+        },
+        {
+          id: "s4",
+          username: "aesthetic_ai",
+          display_name: "Aesthetic AI ✨",
+          avatar_url: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
+        },
+      ]);
+    }
+  }, []);
+
+  const loadUnreadCounts = useCallback(async () => {
+    if (!user?.id) return;
+    const [notifs, msgs] = await Promise.all([
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("read", false),
+      supabase
+        .from("messages" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("receiver_id" as never, user.id)
+        .eq("read" as never, false),
+    ]);
+    setUnreadNotifs(notifs.count ?? 0);
+    setUnreadMessages(msgs.count ?? 0);
+  }, [user?.id]);
+
+  // ── Effects ──
 
   useEffect(() => {
-    load();
-    loadSuggested();
+    load(activeFilter);
+  }, [activeFilter]);
 
+  useEffect(() => {
+    loadSuggested();
+    loadUnreadCounts();
+
+    // Realtime feed subscription
     const ch = supabase
-      .channel("posts-feed-realtime")
+      .channel("posts-feed-realtime-v2")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "posts" },
-        () => load()
+        () => load(activeFilter)
       )
       .subscribe();
+    channelRef.current = ch;
+
+    // Realtime notifications subscription
+    if (user?.id) {
+      supabase
+        .channel("home-notif-count")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+          () => loadUnreadCounts()
+        )
+        .subscribe();
+    }
 
     return () => {
       supabase.removeChannel(ch);
     };
-  }, []);
+  }, [user?.id]);
 
-  async function load() {
-    const { data } = await supabase
-      .from("posts")
-      .select("*, profiles(username, display_name, avatar_url)")
-      .eq("is_hidden", false)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setPosts((data ?? []) as PostWithMeta[]);
-    setLoading(false);
+  function handleFilterChange(f: FeedFilter) {
+    setActiveFilter(f);
   }
 
-  async function loadSuggested() {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, username, display_name, avatar_url")
-      .limit(4);
-    setSuggestedUsers(data ?? []);
-  }
+  // ── Render ──
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-4 md:py-6">
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-30 -mx-4 px-4 py-3 glass border-b border-border/40 mb-6 flex items-center justify-between backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <Link to="/home" className="flex items-center gap-2 md:hidden">
-            <Logo className="w-7 h-7 text-primary" plain />
-            <span className="font-display font-bold text-lg">RantSphere</span>
-          </Link>
-          <h1 className="hidden md:block font-display text-2xl font-bold">Home Feed</h1>
-        </div>
+    <div className="max-w-[1400px] mx-auto">
+      {/* Mobile header */}
+      <MobileHomeHeader unreadNotifs={unreadNotifs} unreadMessages={unreadMessages} />
 
-        <div className="flex items-center gap-2">
-          <Link
-            to="/search"
-            className="flex items-center gap-2 bg-input/80 hover:bg-input text-xs text-muted-foreground px-3.5 py-2 rounded-full border border-border/40 transition"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Search rants, people, music...</span>
-          </Link>
-          <Link
-            to="/notifications"
-            className="w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-foreground hover:text-primary transition"
-          >
-            <Bell className="w-4 h-4" />
-          </Link>
-          <Link
-            to="/messages"
-            className="w-9 h-9 rounded-full glass border border-border/40 grid place-items-center text-foreground hover:text-primary transition"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </Link>
-        </div>
-      </header>
+      <div className="flex gap-0 xl:gap-6 px-3 sm:px-4 md:px-4 xl:px-6">
 
-      {/* Main 2-Column Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Center Main Feed Column (2 cols on large screen) */}
-        <div className="lg:col-span-2 space-y-5">
-          {/* 1. Stories / My Day Rail */}
+        {/* ── Center Feed Column ── */}
+        <section
+          className="flex-1 min-w-0 max-w-2xl xl:max-w-none py-4 md:py-5 space-y-4"
+          aria-label="Main feed"
+        >
+          {/* Desktop header inside feed column */}
+          <DesktopHomeHeader unreadNotifs={unreadNotifs} unreadMessages={unreadMessages} />
+
+          {/* 1. Stories Rail */}
           <StoryRail />
 
-          {/* 2. Professional Inline Create Rant Composer */}
-          <InlineComposer onPostCreated={load} />
+          {/* 2. Post Composer */}
+          <InlineComposer onPostCreated={() => load(activeFilter)} />
 
-          {/* 3. Feed Posts Section */}
-          <div className="space-y-4">
+          {/* 3. Feed Filters */}
+          <FeedFilters active={activeFilter} onChange={handleFilterChange} />
+
+          {/* 4. Feed Posts */}
+          <div role="feed" aria-label="Posts feed" aria-busy={loading}>
             {loading ? (
-              <div className="grid place-items-center py-16">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <span className="text-xs text-muted-foreground">Loading the sphere...</span>
-                </div>
-              </div>
+              <FeedSkeletonLoader />
+            ) : error ? (
+              <FeedError onRetry={() => load(activeFilter)} />
             ) : posts.length === 0 ? (
-              /* Clean In-Feed Empty State (Never covers modals) */
-              <div className="glass rounded-3xl p-12 text-center border border-border/40 shadow-card space-y-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-vivid/20 grid place-items-center mx-auto text-primary">
-                  <Sparkles className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="font-display font-bold text-xl text-foreground">No rants yet in your feed</h3>
-                  <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">
-                    Be the first voice to shout into the sphere. Share a thought, photo, video, note, or music track!
-                  </p>
-                </div>
-                <button
-                  onClick={() => setComposeModalOpen(true)}
-                  className="rounded-full bg-gradient-vivid px-6 py-2.5 font-semibold text-sm text-white shadow-glow hover:scale-105 transition inline-flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Create First Rant
-                </button>
-              </div>
+              <EmptyFeedState onCompose={() => setComposeModalOpen(true)} />
             ) : (
-              posts.map((p) => (
-                <PostCard key={p.id} post={p} onChange={load} />
-              ))
+              <div className="space-y-4">
+                {posts.map((p, i) => (
+                  <div
+                    key={p.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}
+                  >
+                    <PostCard post={p} onChange={() => load(activeFilter)} />
+                  </div>
+                ))}
+                {/* End of feed indicator */}
+                <div className="text-center py-6 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Star className="w-3.5 h-3.5 text-primary/50" />
+                  <span>You're all caught up!</span>
+                  <Star className="w-3.5 h-3.5 text-primary/50" />
+                </div>
+              </div>
             )}
           </div>
-        </div>
+        </section>
 
-        {/* Right Sidebar Widgets Column (Explore & Trending Shortcuts) */}
-        <div className="hidden lg:block space-y-5">
-          {/* Trending Topics Widget */}
-          <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display font-bold text-base flex items-center gap-2">
-                <Flame className="w-4 h-4 text-orange-500" />
-                <span>Trending Rants</span>
-              </h3>
-              <Link to="/trending" className="text-xs text-primary hover:underline font-semibold">
-                See all
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {TRENDING_TAGS.map((t, idx) => (
-                <Link
-                  key={t.tag}
-                  to="/tag/$tag"
-                  params={{ tag: t.tag }}
-                  className="flex items-center justify-between group p-1.5 rounded-xl hover:bg-muted/40 transition"
-                >
-                  <div>
-                    <div className="text-xs font-semibold text-foreground group-hover:text-primary transition">
-                      #{t.tag}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">{t.posts} rants</div>
-                  </div>
-                  <span className="text-xs font-bold text-muted-foreground/60">#{idx + 1}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+        {/* ── Right Sidebar ── */}
+        <aside
+          className="hidden xl:flex flex-col gap-4 w-80 shrink-0 py-5 sticky top-0 h-screen overflow-y-auto scrollbar-none"
+          aria-label="Sidebar — trending and suggestions"
+        >
+          {/* Top spacing to align with content */}
+          <div className="h-[52px]" aria-hidden="true" />
 
-          {/* Suggested Users to Follow */}
-          <div className="glass rounded-3xl p-5 border border-border/40 shadow-card space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display font-bold text-base flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-primary" />
-                <span>Who to follow</span>
-              </h3>
-              <Link to="/explore" className="text-xs text-primary hover:underline font-semibold">
-                Explore
-              </Link>
+          <HomeTrendingPanel />
+          <SuggestedFriendsWidget users={suggestedUsers} currentUserId={user?.id} />
+          <BarkadaActivityWidget userId={user?.id} />
+          <ActiveFriendsWidget currentUserId={user?.id} />
+
+          {/* Footer links */}
+          <div className="text-[11px] text-muted-foreground/50 space-y-1 pb-4 px-1">
+            <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+              <Link to="/settings" className="hover:text-muted-foreground transition">Settings</Link>
+              <span>·</span>
+              <Link to="/explore" className="hover:text-muted-foreground transition">Explore</Link>
+              <span>·</span>
+              <Link to="/trending" className="hover:text-muted-foreground transition">Trending</Link>
             </div>
-            <div className="space-y-3">
-              {suggestedUsers.filter(u => u.id !== user?.id).slice(0, 3).map((su) => (
-                <div key={su.id} className="flex items-center justify-between">
-                  <Link
-                    to="/profile/$username"
-                    params={{ username: su.username || "user" }}
-                    className="flex items-center gap-2.5 group"
-                  >
-                    <div className="w-9 h-9 rounded-full bg-gradient-vivid grid place-items-center text-white text-xs font-bold overflow-hidden shadow-glow">
-                      {su.avatar_url ? (
-                        <img src={su.avatar_url} className="w-full h-full object-cover" />
-                      ) : (
-                        su.username?.[0]?.toUpperCase() || "U"
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold group-hover:text-primary transition truncate">
-                        {su.display_name || su.username}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">@{su.username}</div>
-                    </div>
-                  </Link>
-                  <Link
-                    to="/profile/$username"
-                    params={{ username: su.username || "user" }}
-                    className="text-xs bg-muted hover:bg-primary hover:text-white px-3 py-1 rounded-full font-semibold transition"
-                  >
-                    View
-                  </Link>
-                </div>
-              ))}
-            </div>
+            <p>© 2026 RantSphere. Speak freely.</p>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Standalone Compose Modal Triggered by Button */}
+      {/* Mobile floating compose button — shows only on mobile when scrolled */}
+      <button
+        onClick={() => setComposeModalOpen(true)}
+        className="md:hidden fixed bottom-20 right-4 z-30 w-14 h-14 rounded-full bg-gradient-vivid shadow-glow grid place-items-center text-white hover:scale-110 active:scale-95 transition-transform"
+        aria-label="Create a new rant"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Compose Modal */}
       <ComposeDialog
         open={composeModalOpen}
         onOpenChange={setComposeModalOpen}
-        onPostCreated={load}
+        onPostCreated={() => load(activeFilter)}
       />
     </div>
   );

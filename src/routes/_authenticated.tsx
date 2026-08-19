@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { Sidebar, MobileNav } from "@/components/layout/Sidebar";
 import { ComposeDialog } from "@/components/post/ComposeDialog";
+import { ConnectionBanner } from "@/components/layout/ConnectionBanner";
 
 export const Route = createFileRoute("/_authenticated")({ component: AuthLayout });
 
@@ -25,6 +26,7 @@ function AuthLayout() {
 
   return (
     <div className="min-h-screen flex">
+      <ConnectionBanner />
       <Sidebar onCompose={() => setComposeOpen(true)} />
       <main className="flex-1 min-w-0 pb-20 md:pb-0">
         <Outlet />
