@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { getFriends, createBarkadaGroup, uploadGroupAvatar } from "@/lib/barkada-api";
 import { Users2, Camera, X, Check, Loader2, ChevronLeft } from "lucide-react";
@@ -20,11 +20,11 @@ function CreateGroupPage() {
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useState(() => {
+  useEffect(() => {
     if (user) {
       getFriends(user.id).then((f) => { setFriends(f); setFriendsLoaded(true); });
     }
-  });
+  }, [user?.id]);
 
   function toggleMember(id: string) {
     setSelectedIds((prev) => {

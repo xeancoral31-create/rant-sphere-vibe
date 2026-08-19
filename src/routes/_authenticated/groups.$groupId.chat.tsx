@@ -683,11 +683,130 @@ function LocationCard({ lat, lng, isLive, accuracy, sentAt, groupId }: any) {
   );
 }
 
-function PollView({ question, onVote, currentUserId }: any) {
+function PollView({ pollId, question, onVote, currentUserId }: any) {
+  const [poll, setPoll] = useState<any>(null);
+  const [myVotes, setMyVotes] = useState<Set<string>>(new Set());
+  const [voting, setVoting] = useState(false);
+
+  useEffect(() => {
+    if (!pollId) return;
+    // Fetch poll options and votes
+    supabase
+      .from('group_polls')
+      .select('id, question, allow_multiple, group_poll_options(id, text, sort_order), group_poll_votes(id, option_id, user_id)')
+      .eq('id', pollId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setPoll(data);
+          const voted = new Set(
+            (data.group_poll_votes ?? [])
+              .filter((v: any) => v.user_id === currentUserId)
+              .map((v: any) => v.option_id)
+          );
+          setMyVotes(voted);
+        }
+      });
+  }, [pollId, currentUserId]);
+
+  async function handleVote(optionId: string) {
+    if (!poll || voting) return;
+    setVoting(true);
+    const alreadyVoted = myVotes.has(optionId);
+    const updatedVotes = new Set(myVotes);
+    if (alreadyVoted) {
+      updatedVotes.delete(optionId);
+      setMyVotes(updatedVotes);
+      // Optimistically remove vote from UI
+      setPoll((p: any) => ({
+        ...p,
+        group_poll_votes: p.group_poll_votes.filter((v: any) => !(v.option_id === optionId && v.user_id === currentUserId)),
+      }));
+      await supabase.from('group_poll_votes').delete()
+        .eq('poll_id', poll.id).eq('option_id', optionId).eq('user_id', currentUserId);
+    } else {
+      if (!poll.allow_multiple) {
+        // Single-choice: remove existing votes first
+        const toRemove = [...myVotes];
+        updatedVotes.clear();
+        setPoll((p: any) => ({
+          ...p,
+          group_poll_votes: p.group_poll_votes.filter((v: any) => v.user_id !== currentUserId),
+        }));
+        for (const oid of toRemove) {
+          await supabase.from('group_poll_votes').delete()
+            .eq('poll_id', poll.id).eq('option_id', oid).eq('user_id', currentUserId);
+        }
+      }
+      updatedVotes.add(optionId);
+      setMyVotes(updatedVotes);
+      setPoll((p: any) => ({
+        ...p,
+        group_poll_votes: [...(p.group_poll_votes ?? []), { option_id: optionId, user_id: currentUserId, id: Math.random().toString() }],
+      }));
+      await onVote(poll.id, optionId);
+    }
+    setVoting(false);
+  }
+
+  if (!pollId) {
+    return (
+      <div className="min-w-[200px]">
+        <div className="font-medium text-sm mb-1">📊 {question}</div>
+        <div className="text-xs opacity-60">Loading poll...</div>
+      </div>
+    );
+  }
+
+  if (!poll) {
+    return (
+      <div className="min-w-[200px]">
+        <div className="font-medium text-sm mb-1">📊 {question}</div>
+        <div className="flex items-center gap-1.5 text-xs opacity-60 mt-1">
+          <Loader2 className="w-3 h-3 animate-spin" /> Loading poll...
+        </div>
+      </div>
+    );
+  }
+
+  const options = [...(poll.group_poll_options ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order);
+  const allVotes = poll.group_poll_votes ?? [];
+  const totalVotes = allVotes.length;
+
   return (
-    <div className="min-w-[200px]">
-      <div className="font-medium text-sm mb-2">📊 {question}</div>
-      <div className="text-xs opacity-70">View poll in group timeline</div>
+    <div className="min-w-[220px] space-y-2">
+      <div className="font-semibold text-sm">📊 {poll.question}</div>
+      {options.map((opt: any) => {
+        const voteCount = allVotes.filter((v: any) => v.option_id === opt.id).length;
+        const pct = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+        const voted = myVotes.has(opt.id);
+        return (
+          <button
+            key={opt.id}
+            onClick={() => handleVote(opt.id)}
+            disabled={voting}
+            className={`w-full rounded-xl overflow-hidden text-left transition hover:opacity-90 ${
+              voted ? 'ring-2 ring-white/40' : ''
+            }`}
+          >
+            <div className="relative bg-white/10 rounded-xl px-3 py-2">
+              <div
+                className={`absolute inset-0 rounded-xl transition-all duration-500 ${
+                  voted ? 'bg-white/30' : 'bg-white/10'
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+              <div className="relative flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{opt.text}</span>
+                <span className="text-xs opacity-70 whitespace-nowrap">{pct}% ({voteCount})</span>
+              </div>
+            </div>
+          </button>
+        );
+      })}
+      <div className="text-[10px] opacity-50 text-right">
+        {totalVotes} vote{totalVotes !== 1 ? 's' : ''} · {poll.allow_multiple ? 'Multi-choice' : 'Single choice'}
+      </div>
     </div>
   );
 }

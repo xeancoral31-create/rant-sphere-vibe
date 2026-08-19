@@ -605,6 +605,7 @@ export async function createPoll({
     senderId: creatorId,
     messageType: 'poll',
     content: question,
+    metadata: { poll_id: '__PENDING__' }, // will be updated after poll insert
   });
 
   const { data: poll, error: pe } = await supabase
@@ -613,6 +614,9 @@ export async function createPoll({
     .select()
     .single();
   if (pe) throw pe;
+
+  // Update message metadata with the real poll_id
+  await supabase.from('messages').update({ metadata: { poll_id: poll.id } }).eq('id', msg.id).then(() => {});
 
   const opts = options.map((text, idx) => ({ poll_id: poll.id, text, sort_order: idx }));
   await supabase.from('group_poll_options').insert(opts);
@@ -625,6 +629,7 @@ export async function createPoll({
   }).then(() => {});
 
   return poll;
+
 }
 
 export async function votePoll(pollId: string, optionId: string, userId: string) {

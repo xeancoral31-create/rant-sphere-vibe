@@ -34,6 +34,7 @@ import { Route as RegisterSsoCallbackRouteImport } from './routes/register.sso-c
 import { Route as AuthenticatedFriendsCreateGroupRouteImport } from './routes/_authenticated/friends.create-group'
 import { Route as AuthenticatedProfileUsernameRouteImport } from './routes/_authenticated/profile.$username'
 import { Route as AuthenticatedTagTagRouteImport } from './routes/_authenticated/tag.$tag'
+import { Route as AuthenticatedGroupsGroupIdActivityRouteImport } from './routes/_authenticated/groups.$groupId.activity'
 import { Route as AuthenticatedGroupsGroupIdChatRouteImport } from './routes/_authenticated/groups.$groupId.chat'
 import { Route as AuthenticatedGroupsGroupIdMapRouteImport } from './routes/_authenticated/groups.$groupId.map'
 import { Route as AuthenticatedGroupsGroupIdMediaRouteImport } from './routes/_authenticated/groups.$groupId.media'
@@ -166,6 +167,12 @@ const AuthenticatedTagTagRoute = AuthenticatedTagTagRouteImport.update({
   path: '/tag/$tag',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedGroupsGroupIdActivityRoute =
+  AuthenticatedGroupsGroupIdActivityRouteImport.update({
+    id: '/groups/$groupId/activity',
+    path: '/groups/$groupId/activity',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedGroupsGroupIdChatRoute =
   AuthenticatedGroupsGroupIdChatRouteImport.update({
     id: '/groups/$groupId/chat',
@@ -216,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/groups/$groupId/activity': typeof AuthenticatedGroupsGroupIdActivityRoute
   '/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
   '/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
   '/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
@@ -246,6 +254,7 @@ export interface FileRoutesByTo {
   '/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/groups/$groupId/activity': typeof AuthenticatedGroupsGroupIdActivityRoute
   '/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
   '/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
   '/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
@@ -278,6 +287,7 @@ export interface FileRoutesById {
   '/_authenticated/friends/create-group': typeof AuthenticatedFriendsCreateGroupRoute
   '/_authenticated/profile/$username': typeof AuthenticatedProfileUsernameRoute
   '/_authenticated/tag/$tag': typeof AuthenticatedTagTagRoute
+  '/_authenticated/groups/$groupId/activity': typeof AuthenticatedGroupsGroupIdActivityRoute
   '/_authenticated/groups/$groupId/chat': typeof AuthenticatedGroupsGroupIdChatRoute
   '/_authenticated/groups/$groupId/map': typeof AuthenticatedGroupsGroupIdMapRoute
   '/_authenticated/groups/$groupId/media': typeof AuthenticatedGroupsGroupIdMediaRoute
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/friends/create-group'
     | '/profile/$username'
     | '/tag/$tag'
+    | '/groups/$groupId/activity'
     | '/groups/$groupId/chat'
     | '/groups/$groupId/map'
     | '/groups/$groupId/media'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/friends/create-group'
     | '/profile/$username'
     | '/tag/$tag'
+    | '/groups/$groupId/activity'
     | '/groups/$groupId/chat'
     | '/groups/$groupId/map'
     | '/groups/$groupId/media'
@@ -371,6 +383,7 @@ export interface FileRouteTypes {
     | '/_authenticated/friends/create-group'
     | '/_authenticated/profile/$username'
     | '/_authenticated/tag/$tag'
+    | '/_authenticated/groups/$groupId/activity'
     | '/_authenticated/groups/$groupId/chat'
     | '/_authenticated/groups/$groupId/map'
     | '/_authenticated/groups/$groupId/media'
@@ -564,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTagTagRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/groups/$groupId/activity': {
+      id: '/_authenticated/groups/$groupId/activity'
+      path: '/groups/$groupId/activity'
+      fullPath: '/groups/$groupId/activity'
+      preLoaderRoute: typeof AuthenticatedGroupsGroupIdActivityRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/groups/$groupId/chat': {
       id: '/_authenticated/groups/$groupId/chat'
       path: '/groups/$groupId/chat'
@@ -618,6 +638,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTrendingRoute: typeof AuthenticatedTrendingRoute
   AuthenticatedProfileUsernameRoute: typeof AuthenticatedProfileUsernameRoute
   AuthenticatedTagTagRoute: typeof AuthenticatedTagTagRoute
+  AuthenticatedGroupsGroupIdActivityRoute: typeof AuthenticatedGroupsGroupIdActivityRoute
   AuthenticatedGroupsGroupIdChatRoute: typeof AuthenticatedGroupsGroupIdChatRoute
   AuthenticatedGroupsGroupIdMapRoute: typeof AuthenticatedGroupsGroupIdMapRoute
   AuthenticatedGroupsGroupIdMediaRoute: typeof AuthenticatedGroupsGroupIdMediaRoute
@@ -636,6 +657,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTrendingRoute: AuthenticatedTrendingRoute,
   AuthenticatedProfileUsernameRoute: AuthenticatedProfileUsernameRoute,
   AuthenticatedTagTagRoute: AuthenticatedTagTagRoute,
+  AuthenticatedGroupsGroupIdActivityRoute:
+    AuthenticatedGroupsGroupIdActivityRoute,
   AuthenticatedGroupsGroupIdChatRoute: AuthenticatedGroupsGroupIdChatRoute,
   AuthenticatedGroupsGroupIdMapRoute: AuthenticatedGroupsGroupIdMapRoute,
   AuthenticatedGroupsGroupIdMediaRoute: AuthenticatedGroupsGroupIdMediaRoute,
