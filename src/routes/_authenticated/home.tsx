@@ -552,6 +552,8 @@ export function HomePage() {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const notifChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const activeFilterRef = useRef<FeedFilter>("foryou");
 
   // ── Data loading ──
 
@@ -658,6 +660,11 @@ export function HomePage() {
 
   // ── Effects ──
 
+  // Keep the activeFilter ref in sync so the feed channel callback is never stale
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+  }, [activeFilter]);
+
   useEffect(() => {
     load(activeFilter);
   }, [activeFilter]);
@@ -666,31 +673,63 @@ export function HomePage() {
     loadSuggested();
     loadUnreadCounts();
 
-    // Realtime feed subscription
-    const ch = supabase
-      .channel("posts-feed-realtime-v2")
+    // ── Realtime: posts feed ──────────────────────────────────────────────────
+    // Always tear down any existing feed channel before creating a fresh one
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const feedChannel = supabase
+      .channel(`posts-feed-realtime-${user?.id ?? "anon"}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "posts" },
-        () => load(activeFilter)
+        // Use the ref so we always read the current filter without a stale closure
+        () => load(activeFilterRef.current)
       )
       .subscribe();
-    channelRef.current = ch;
+    channelRef.current = feedChannel;
 
-    // Realtime notifications subscription
+    // ── Realtime: notification count ─────────────────────────────────────────
+    // Tear down any existing notif channel before creating a fresh one
+    if (notifChannelRef.current) {
+      supabase.removeChannel(notifChannelRef.current);
+      notifChannelRef.current = null;
+    }
+
     if (user?.id) {
-      supabase
-        .channel("home-notif-count")
+      // Build the entire chain — all .on() BEFORE .subscribe()
+      const notifChannel = supabase
+        .channel(`home-notif-count-${user.id}`)
         .on(
           "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
           () => loadUnreadCounts()
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR") {
+            // Realtime failure is non-fatal — page stays usable
+            console.warn("[home] notification realtime channel error, will rely on polling");
+          }
+        });
+      notifChannelRef.current = notifChannel;
     }
 
     return () => {
-      supabase.removeChannel(ch);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      if (notifChannelRef.current) {
+        supabase.removeChannel(notifChannelRef.current);
+        notifChannelRef.current = null;
+      }
     };
   }, [user?.id]);
 
