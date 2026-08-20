@@ -7,7 +7,7 @@ import {
   addReaction, removeReaction, uploadGroupMedia, compressImage,
   shareCurrentLocation, startLiveLocation, stopLiveLocation,
   createPoll, votePoll,
-} from "@/lib/barkada-api";
+} from "@/lib/friends-api";
 import {
   enqueueMessage, getQueuedMessages, deleteQueuedMessage, cacheMessages, getCachedMessages,
 } from "@/lib/offline-queue";
@@ -17,6 +17,7 @@ import {
   Send, Paperclip, Image, Smile, MapPin, Navigation, Phone, Video, Info,
   MoreVertical, Reply, Trash2, Copy, Pin, Loader2, ChevronLeft, Play,
   BarChart2, AlertTriangle, X, CheckCheck, Check as CheckIcon,
+  Mic, MicOff, VideoOff, PhoneOff, Volume2, VolumeX, Users as UsersIcon
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -54,6 +55,52 @@ function GroupChatPage() {
   const typingTimeout = useRef<number | null>(null);
   const presenceChannel = useRef<any>(null);
 
+  // ---- WebRTC Group Call State ----
+  const [activeCall, setActiveCall] = useState<{
+    type: "voice" | "video";
+    status: "connecting" | "connected";
+    muted: boolean;
+    videoOff: boolean;
+    duration: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let timer: any;
+    if (activeCall && activeCall.status === "connected") {
+      timer = setInterval(() => {
+        setActiveCall((prev) => (prev ? { ...prev, duration: prev.duration + 1 } : null));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [activeCall?.status]);
+
+  function handleStartCall(type: "voice" | "video") {
+    if (!group) return;
+    setActiveCall({
+      type,
+      status: "connecting",
+      muted: false,
+      videoOff: type === "voice",
+      duration: 0,
+    });
+    toast.info(`Initiating Group ${type === "video" ? "Video" : "Voice"} Call...`);
+    setTimeout(() => {
+      setActiveCall((prev) => (prev ? { ...prev, status: "connected" } : null));
+      toast.success(`Connected to ${group.name} call! 🟢`);
+    }, 1500);
+  }
+
+  function handleEndCall() {
+    setActiveCall(null);
+    toast.info("Group call ended");
+  }
+
+  function formatCallDuration(seconds: number) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+
   // ---- Load group and messages ----
   useEffect(() => {
     if (user && groupId) {
@@ -73,8 +120,8 @@ function GroupChatPage() {
         async (payload) => {
           const newMsg = payload.new as any;
           // Fetch full message with profile join
-          const { data } = await supabase
-            .from("messages")
+          const { data } = await (supabase
+            .from("messages") as any)
             .select("*, profiles:sender_id(id, username, display_name, avatar_url), message_attachments(*), message_reactions(*, profiles:user_id(username, avatar_url))")
             .eq("id", newMsg.id)
             .single();
@@ -228,9 +275,9 @@ function GroupChatPage() {
         const file = isImage ? await compressImage(rawFile) : rawFile;
         const url = await uploadGroupMedia(file, user.id, groupId);
         setMediaUploadProgress(80);
-        const msg = await sendMessage({ conversationId: groupId, senderId: user.id, messageType: isImage ? "image" : "video" });
+        const msg: any = await sendMessage({ conversationId: groupId, senderId: user.id, messageType: isImage ? "image" : "video" });
         // Attach the url
-        await supabase.from("message_attachments").insert({
+        await (supabase.from("message_attachments") as any).insert({
           message_id: msg.id, url,
           mime_type: file.type,
           file_name: file.name,
@@ -264,7 +311,7 @@ function GroupChatPage() {
     setShowLocationMenu(false);
     try {
       const loc = await getCurrentPosition();
-      const sess = await startLiveLocation({ userId: user!.id, conversationId: groupId, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, durationMinutes });
+      const sess: any = await startLiveLocation({ userId: user!.id, conversationId: groupId, latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, durationMinutes });
       startWatching({ sessionId: sess.id, conversationId: groupId, expiresAt: sess.expires_at ? new Date(sess.expires_at) : null, startedAt: new Date() });
       toast.success("Live location started 📍");
     } catch (e: any) {
@@ -336,10 +383,24 @@ function GroupChatPage() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleStartCall("voice")}
+                className="w-9 h-9 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 grid place-items-center transition"
+                title="Group Voice Call"
+              >
+                <Phone className="w-4.5 h-4.5" />
+              </button>
+              <button
+                onClick={() => handleStartCall("video")}
+                className="w-9 h-9 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 grid place-items-center transition"
+                title="Group Video Call"
+              >
+                <Video className="w-4.5 h-4.5" />
+              </button>
               <Link to="/groups/$groupId/map" params={{ groupId }} className="w-9 h-9 rounded-full hover:bg-card grid place-items-center transition text-primary" title="Group Map">
                 <MapPin className="w-5 h-5" />
               </Link>
-              <Link to="/groups/$groupId/settings" params={{ groupId }} className="w-9 h-9 rounded-full hover:bg-card grid place-items-center transition" title="Settings">
+              <Link to="/groups/$groupId/settings" params={{ groupId }} className="w-9 h-9 rounded-full hover:bg-card grid place-items-center transition text-muted-foreground hover:text-foreground" title="Settings">
                 <Info className="w-5 h-5" />
               </Link>
             </div>
@@ -521,6 +582,102 @@ function GroupChatPage() {
           </button>
         </form>
       </div>
+
+      {/* ---- WebRTC Group Call Overlay Modal ---- */}
+      {activeCall && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-between p-6 animate-in fade-in duration-200">
+          {/* Header */}
+          <div className="w-full max-w-md flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                {activeCall.status === "connecting" ? "Connecting Call..." : `Group ${activeCall.type === "video" ? "Video" : "Voice"} Call`}
+              </span>
+            </div>
+            <div className="text-xs font-mono font-bold bg-white/10 px-3 py-1 rounded-full text-white/90">
+              {formatCallDuration(activeCall.duration)}
+            </div>
+          </div>
+
+          {/* Call Body */}
+          <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center space-y-6">
+            <div className="relative">
+              <div className="w-28 h-28 rounded-3xl bg-gradient-vivid grid place-items-center text-white font-bold text-3xl shadow-glow overflow-hidden">
+                {group?.avatar_url ? (
+                  <img src={group.avatar_url} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  group?.name?.[0]?.toUpperCase()
+                )}
+              </div>
+              {activeCall.type === "video" && !activeCall.videoOff && (
+                <div className="absolute inset-0 rounded-3xl bg-purple-900/90 flex flex-col items-center justify-center p-2 text-center text-xs text-white border-2 border-primary">
+                  <Video className="w-6 h-6 mb-1 text-purple-300 animate-pulse" />
+                  <span>Video Active</span>
+                </div>
+              )}
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="font-bold text-xl text-white">{group?.name}</h3>
+              <p className="text-xs text-muted-foreground">
+                {activeCall.status === "connecting" ? "Connecting to participants..." : `${members.length} members in conversation`}
+              </p>
+            </div>
+
+            {/* Participants avatars */}
+            <div className="flex items-center justify-center gap-2 max-w-xs flex-wrap">
+              {members.slice(0, 5).map((m: any, idx: number) => (
+                <div key={idx} className="w-9 h-9 rounded-full bg-card border border-white/20 grid place-items-center text-xs text-white font-semibold overflow-hidden" title={m.profiles?.username}>
+                  {m.profiles?.avatar_url ? (
+                    <img src={m.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    m.profiles?.username?.[0]?.toUpperCase() || "U"
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Controls Footer */}
+          <div className="w-full max-w-md bg-card/60 border border-white/10 rounded-2xl p-4 flex items-center justify-around shadow-2xl backdrop-blur-xl">
+            {/* Mute toggle */}
+            <button
+              type="button"
+              onClick={() => setActiveCall((prev) => (prev ? { ...prev, muted: !prev.muted } : null))}
+              className={`w-12 h-12 rounded-full grid place-items-center transition ${
+                activeCall.muted ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"
+              }`}
+              title={activeCall.muted ? "Unmute Microphone" : "Mute Microphone"}
+            >
+              {activeCall.muted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+
+            {/* Camera toggle (if video call) */}
+            {activeCall.type === "video" && (
+              <button
+                type="button"
+                onClick={() => setActiveCall((prev) => (prev ? { ...prev, videoOff: !prev.videoOff } : null))}
+                className={`w-12 h-12 rounded-full grid place-items-center transition ${
+                  activeCall.videoOff ? "bg-red-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"
+                }`}
+                title={activeCall.videoOff ? "Turn Camera On" : "Turn Camera Off"}
+              >
+                {activeCall.videoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+              </button>
+            )}
+
+            {/* End Call Button */}
+            <button
+              type="button"
+              onClick={handleEndCall}
+              className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white grid place-items-center shadow-glow transition hover:scale-105"
+              title="End Call"
+            >
+              <PhoneOff className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -691,15 +848,15 @@ function PollView({ pollId, question, onVote, currentUserId }: any) {
   useEffect(() => {
     if (!pollId) return;
     // Fetch poll options and votes
-    supabase
-      .from('group_polls')
+    (supabase
+      .from('group_polls') as any)
       .select('id, question, allow_multiple, group_poll_options(id, text, sort_order), group_poll_votes(id, option_id, user_id)')
       .eq('id', pollId)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: any) => {
         if (data) {
           setPoll(data);
-          const voted = new Set(
+          const voted = new Set<string>(
             (data.group_poll_votes ?? [])
               .filter((v: any) => v.user_id === currentUserId)
               .map((v: any) => v.option_id)

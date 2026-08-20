@@ -180,7 +180,7 @@ export const MUSIC_LIBRARY: MusicTrack[] = [
   {
     id: "track-17",
     title: "Neural Groove 404",
-    artist: "RantSphere AI",
+    artist: "OutLoud AI",
     genre: "AI Glitch Hop",
     category: "AI/Original",
     duration: "2:55",
@@ -210,7 +210,7 @@ export const MUSIC_LIBRARY: MusicTrack[] = [
   {
     id: "track-20",
     title: "Sphere Harmony",
-    artist: "RantSphere Originals",
+    artist: "OutLoud Originals",
     genre: "Vocal Ambient",
     category: "Trending",
     duration: "3:15",

@@ -179,7 +179,7 @@ export function ComposeDialog({
 
       const fullContent = location.trim() ? `${content.trim()}\n📍 ${location.trim()}` : content.trim();
 
-      const { error } = await supabase.from("posts").insert({
+      const { error } = await (supabase.from("posts") as any).insert({
         author_id: user.id,
         content: fullContent || null,
         media_url: uploadedMediaUrl,

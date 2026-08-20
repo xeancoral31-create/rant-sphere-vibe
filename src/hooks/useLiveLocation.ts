@@ -4,7 +4,7 @@
  * and handles the offline location queue.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { updateLiveLocation, stopLiveLocation } from '@/lib/barkada-api';
+import { updateLiveLocation, stopLiveLocation } from '@/lib/friends-api';
 import { enqueueLocation, getQueuedLocations, deleteQueuedLocation } from '@/lib/offline-queue';
 
 export type LocationState = {

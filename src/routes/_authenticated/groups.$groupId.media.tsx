@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { getGroupDetails } from "@/lib/barkada-api";
+import { getGroupDetails } from "@/lib/friends-api";
 import { ChevronLeft, Image, Film, FileText, MapPin, Loader2, X, Download } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/groups/$groupId/media")({ component: GroupMediaPage });

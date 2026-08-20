@@ -22,7 +22,7 @@ const navItems = [
   { to: "/search", icon: Search, label: "Search" },
   { to: "/notifications", icon: Bell, label: "Notifications" },
   { to: "/messages", icon: MessageCircle, label: "Messages" },
-  { to: "/friends", icon: Users, label: "Barkada" },
+  { to: "/friends", icon: Users, label: "Groups" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -35,7 +35,7 @@ export function Sidebar({ onCompose }: { onCompose?: () => void }) {
       {/* Logo */}
       <Link to="/home" className="flex items-center gap-2 mb-6 px-3 lg:px-4 pt-5 min-w-0">
         <Logo className="w-8 h-8 text-primary shrink-0" plain />
-        <span className="font-display font-bold text-xl hidden lg:block truncate">RantSphere</span>
+        <span className="font-display font-bold text-xl hidden lg:block truncate">OutLoud</span>
       </Link>
 
       {/* Nav */}
@@ -100,29 +100,14 @@ export function Sidebar({ onCompose }: { onCompose?: () => void }) {
       <div className="px-2 pb-2 mt-2">
         <button
           onClick={onCompose}
-          aria-label="Create a Rant"
+          aria-label="Create a Note"
           className="w-full rounded-full bg-gradient-vivid py-3 font-semibold text-white shadow-glow hover:scale-105 transition flex items-center justify-center gap-2"
         >
           <PlusCircle className="w-5 h-5 shrink-0" />
-          <span className="hidden lg:block">Rant</span>
+          <span className="hidden lg:block">Note</span>
         </button>
       </div>
 
-      {/* User Button */}
-      {isSignedIn ? (
-        <div className="mx-2 mb-4 mt-1 flex items-center justify-center p-2.5 rounded-xl glass">
-          <UserButton showName={false} appearance={{ elements: { userButtonBox: "flex-row-reverse" } }} />
-        </div>
-      ) : (
-        <div className="mx-2 mb-4 mt-1 flex flex-col items-center gap-2 p-3 rounded-xl glass">
-          <SignInButton mode="modal">
-            <button className="w-full rounded-full bg-gradient-vivid py-2 font-semibold text-white shadow-glow hover:scale-105 transition text-sm">
-              <span className="hidden lg:block">Sign In</span>
-              <span className="lg:hidden text-base">→</span>
-            </button>
-          </SignInButton>
-        </div>
-      )}
     </aside>
   );
 }

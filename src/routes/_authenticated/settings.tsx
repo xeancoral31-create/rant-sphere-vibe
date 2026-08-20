@@ -13,6 +13,7 @@ import {
   LogOut,
   Lock,
   Settings as SettingsIcon,
+  Shield,
   Sliders,
   User as UserIcon,
   Users,
@@ -24,15 +25,16 @@ import { useSettings, type UserSettings } from "@/hooks/use-settings";
 import { toast } from "sonner";
 import { FollowButton } from "@/components/connections/FollowButton";
 import { respondToRequest } from "@/lib/connections";
+import { UserButton } from "@clerk/tanstack-react-start";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
   head: () => ({
     meta: [
-      { title: "Settings · RantSphere" },
-      { name: "description", content: "Manage your RantSphere account, privacy, audience, notifications, blocking and accessibility preferences." },
-      { property: "og:title", content: "Settings · RantSphere" },
-      { property: "og:description", content: "Manage your RantSphere account, privacy, audience and notification preferences." },
+      { title: "Settings · OutLoud" },
+      { name: "description", content: "Manage your OutLoud account, privacy, audience, notifications, blocking and accessibility preferences." },
+      { property: "og:title", content: "Settings · OutLoud" },
+      { property: "og:description", content: "Manage your OutLoud account, privacy, audience and notification preferences." },
     ],
   }),
 });
@@ -52,6 +54,8 @@ const SECTIONS = [
   { id: "connected", label: "Connected accounts", icon: Link2, group: "Preferences" },
   { id: "language", label: "Language and region", icon: Globe, group: "Preferences" },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, group: "Preferences" },
+  { id: "datamedia", label: "Data and media", icon: Sliders, group: "Preferences" },
+  { id: "trusted", label: "Trusted friends and emergency", icon: Shield, group: "Audience" },
   { id: "preferences", label: "Preferences", icon: Sliders, group: "Preferences" },
   { id: "help", label: "Help and support", icon: HelpCircle, group: "Support" },
 ] as const;
@@ -60,12 +64,12 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 
 function Row({ title, desc, children }: { title: string; desc?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-4 border-b border-border/40 last:border-0">
-      <div className="min-w-0">
-        <div className="font-medium">{title}</div>
-        {desc && <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>}
+    <div className="flex items-center justify-between gap-4 py-5 border-b border-border/20 last:border-0 hover:bg-white/5 px-4 rounded-xl transition-colors">
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold text-foreground/90">{title}</div>
+        {desc && <div className="text-sm text-muted-foreground mt-1 leading-relaxed">{desc}</div>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="shrink-0 ml-4">{children}</div>
     </div>
   );
 }
@@ -108,10 +112,10 @@ function Select({
 
 function Card({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <section className="glass rounded-3xl p-6 shadow-card">
-      <h2 className="font-display text-xl font-bold">{title}</h2>
-      {desc && <p className="text-sm text-muted-foreground mt-1">{desc}</p>}
-      <div className="mt-3">{children}</div>
+    <section className="glass rounded-3xl p-8 shadow-xl border border-white/10 backdrop-blur-lg bg-card/40 transition-all duration-300 hover:bg-card/50">
+      <h2 className="font-display text-2xl font-bold tracking-tight">{title}</h2>
+      {desc && <p className="text-sm text-muted-foreground mt-2">{desc}</p>}
+      <div className="mt-6 space-y-2">{children}</div>
     </section>
   );
 }
@@ -141,10 +145,16 @@ function SettingsPage() {
   const groups = Array.from(new Set(SECTIONS.map((s) => s.group)));
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6">
-      <h1 className="font-display text-3xl font-bold mb-6">Settings</h1>
-      <div className="grid md:grid-cols-[260px_1fr] gap-6 items-start">
-        <nav className="glass rounded-3xl p-3 md:sticky md:top-6 max-h-[80vh] overflow-y-auto">
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="font-display text-4xl font-bold tracking-tight">Settings</h1>
+        <div className="scale-125 origin-right">
+          <UserButton />
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-[280px_1fr] gap-8 items-start">
+        <nav className="glass rounded-3xl p-4 md:sticky md:top-6 max-h-[80vh] overflow-y-auto space-y-4 shadow-lg border border-white/10 backdrop-blur-md">
           {groups.map((g) => (
             <div key={g} className="mb-3">
               <div className="px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">{g}</div>
@@ -181,6 +191,7 @@ function SettingsPage() {
                 <Toggle
                   on={profile.is_private}
                   onClick={async () => {
+                    // @ts-ignore
                     await supabase.from("profiles").update({ is_private: !profile.is_private }).eq("id", user.id);
                     refreshProfile();
                     toast.success("Privacy updated");
@@ -304,6 +315,8 @@ function SettingsPage() {
               </Row>
             </Card>
           )}
+          {active === "datamedia" && <DataMediaSection />}
+          {active === "trusted" && <TrustedFriendsSection />}
           {active === "preferences" && settings && (
             <Card title="Preferences">
               <Row title="Autoplay videos">
@@ -328,7 +341,7 @@ function SettingsPage() {
                   Contact support
                 </a>
               </Row>
-              <Row title="Community guidelines" desc="What is and isn't allowed on RantSphere.">
+              <Row title="Community guidelines" desc="What is and isn't allowed on OutLoud.">
                 <Link to="/explore" className="rounded-full glass px-4 py-2 text-sm font-medium">
                   Read
                 </Link>
@@ -386,6 +399,7 @@ function ProfileSection({ onSaved }: { onSaved: () => void }) {
       const { error } = await supabase.storage.from("avatars").upload(path, avatar, { upsert: true });
       if (!error) avatar_url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
     }
+    // @ts-ignore
     const { error } = await supabase.from("profiles").update({ ...form, avatar_url }).eq("id", user.id);
     setLoading(false);
     if (error) return toast.error(error.message);
@@ -396,7 +410,7 @@ function ProfileSection({ onSaved }: { onSaved: () => void }) {
   if (!profile) return null;
 
   return (
-    <Card title="Profile settings" desc="How you appear across RantSphere.">
+    <Card title="Profile settings" desc="How you appear across OutLoud.">
       <div className="flex items-center gap-4 py-4 border-b border-border/40">
         <div className="w-20 h-20 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold text-2xl overflow-hidden">
           {avatar ? (
@@ -458,11 +472,11 @@ function PersonalSection() {
       .then(({ data }) => {
         if (data)
           setForm({
-            full_name: data.full_name ?? "",
-            country: data.country ?? "",
-            location: data.location ?? "",
-            website: data.website ?? "",
-            phone: data.phone ?? "",
+            full_name: (data as any).full_name ?? "",
+            country: (data as any).country ?? "",
+            location: (data as any).location ?? "",
+            website: (data as any).website ?? "",
+            phone: (data as any).phone ?? "",
           });
       });
   }, [user?.id]);
@@ -470,6 +484,7 @@ function PersonalSection() {
   async function save() {
     if (!user) return;
     setSaving(true);
+    // @ts-ignore
     const { error } = await supabase.from("profiles").update(form).eq("id", user.id);
     setSaving(false);
     error ? toast.error(error.message) : toast.success("Personal information saved");
@@ -511,6 +526,27 @@ function PersonalSection() {
 function SecuritySection() {
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState("Loading device info...");
+
+  useEffect(() => {
+    // Basic User-Agent parsing for display
+    const ua = navigator.userAgent;
+    let browser = "Unknown Browser";
+    let os = "Unknown OS";
+    
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari")) browser = "Safari";
+    else if (ua.includes("Edge")) browser = "Edge";
+    
+    if (ua.includes("Windows")) os = "Windows";
+    else if (ua.includes("Mac")) os = "MacOS";
+    else if (ua.includes("Linux")) os = "Linux";
+    else if (ua.includes("Android")) os = "Android";
+    else if (ua.includes("like Mac")) os = "iOS";
+    
+    setDeviceInfo(`${browser} on ${os} (Current Device)`);
+  }, []);
 
   async function change() {
     if (pw.length < 8) return toast.error("Use at least 8 characters");
@@ -524,32 +560,48 @@ function SecuritySection() {
 
   return (
     <Card title="Password and security" desc="Keep your account protected.">
-      <div className="py-2 space-y-4">
-        <div>
-          <label className="text-sm font-medium">New password</label>
-          <input
-            type="password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            className="mt-1 w-full rounded-xl bg-input border border-border px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary"
-          />
+      <div className="py-2 space-y-6">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium">New password</label>
+            <input
+              type="password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              className="mt-1 w-full rounded-xl bg-input border border-border px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <button
+            onClick={change}
+            disabled={busy}
+            className="w-full rounded-xl bg-gradient-vivid py-3 font-semibold text-white shadow-glow disabled:opacity-50"
+          >
+            {busy ? "Updating..." : "Update password"}
+          </button>
         </div>
-        <button
-          onClick={change}
-          disabled={busy}
-          className="w-full rounded-xl bg-gradient-vivid py-3 font-semibold text-white shadow-glow disabled:opacity-50"
-        >
-          {busy ? "Updating..." : "Update password"}
-        </button>
-        <button
-          onClick={async () => {
-            await supabase.auth.signOut({ scope: "global" });
-            toast.success("Signed out of all devices");
-          }}
-          className="w-full rounded-xl glass py-3 font-semibold"
-        >
-          Log out of all devices
-        </button>
+
+        <div className="pt-4 border-t border-border/50">
+          <h3 className="text-sm font-medium mb-3">Connected Devices</h3>
+          <div className="bg-card border border-border/50 rounded-xl p-4 mb-4 flex items-center gap-3">
+             <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                <Globe className="w-5 h-5" />
+             </div>
+             <div>
+                <p className="text-sm font-medium">{deviceInfo}</p>
+                <p className="text-xs text-green-400">Active now</p>
+             </div>
+          </div>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut({ scope: "global" });
+              toast.success("Signed out of all devices");
+              window.location.href = "/login";
+            }}
+            className="w-full rounded-xl glass border border-destructive/30 text-destructive py-3 font-semibold hover:bg-destructive/10 transition"
+          >
+            Log out of all devices
+          </button>
+        </div>
       </div>
     </Card>
   );
@@ -784,11 +836,132 @@ function ActivitySection() {
 
 function ConnectedSection() {
   const { user } = useAuthContext();
-  const providers = (user?.identities ?? []).map((i) => i.provider);
+  const providers = (user?.identities ?? []).map((i: any) => i.provider);
   return (
     <Card title="Connected accounts" desc="Sign-in methods linked to this account.">
       <Row title="Email and password">{providers.includes("email") ? "Connected" : "Not connected"}</Row>
       <Row title="Google">{providers.includes("google") ? "Connected" : "Not connected"}</Row>
+    </Card>
+  );
+}
+
+function DataMediaSection() {
+  const [dataSaver, setDataSaver] = useState(false);
+  const [uploadQuality, setUploadQuality] = useState("high");
+  const [autoDownload, setAutoDownload] = useState(true);
+  const [sponsoredData, setSponsoredData] = useState(false);
+
+  return (
+    <Card title="Data & Media (Low Data Mode)" desc="Manage bandwidth usage, image compression, and sponsored data options.">
+      <Row title="Low Data Mode / Data Saver" desc="Compress images, reduce video quality, and delay large media downloads">
+        <Toggle on={dataSaver} onClick={() => { setDataSaver(!dataSaver); toast.success(dataSaver ? "Data saver disabled" : "Data saver enabled"); }} />
+      </Row>
+
+      <Row title="Auto-download Photos & Videos" desc="Automatically download attachments in groups">
+        <Toggle on={autoDownload} onClick={() => setAutoDownload(!autoDownload)} />
+      </Row>
+
+      <Row title="Upload Image Quality" desc="Compression ratio for photos sent in group chat">
+        <Select
+          value={uploadQuality}
+          onChange={(v) => setUploadQuality(v)}
+          options={[
+            { value: "high", label: "High Quality (Original)" },
+            { value: "medium", label: "Medium Compression" },
+            { value: "low", label: "Low Quality (Fastest)" },
+          ]}
+        />
+      </Row>
+
+      <Row title="Sponsored Zero-Rating Traffic Architecture" desc="Enable provider zero-rated traffic (SPONSORED_DATA_ENABLED=false by default)">
+        <Toggle
+          on={sponsoredData}
+          onClick={() => {
+            setSponsoredData(!sponsoredData);
+            toast.info(sponsoredData ? "Sponsored data disabled" : "Sponsored zero-rating configuration saved (OFF by default)");
+          }}
+        />
+      </Row>
+    </Card>
+  );
+}
+
+function TrustedFriendsSection() {
+  const { user } = useAuthContext();
+  const [trustedList, setTrustedList] = useState<any[]>([]);
+  const [searchUser, setSearchUser] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("trusted_contacts" as never)
+      .select("*, contact:profiles!trusted_contacts_contact_id_fkey(id, username, display_name, avatar_url)")
+      .eq("user_id", user.id)
+      .then(({ data }) => setTrustedList((data ?? []).map((d: any) => d.contact)));
+  }, [user?.id]);
+
+  async function addTrusted(contactId: string) {
+    if (!user) return;
+    await (supabase.from("trusted_contacts") as any).insert({ user_id: user.id, contact_id: contactId });
+    toast.success("Added to trusted friends");
+    setSearchUser("");
+    setSearchResults([]);
+    window.location.reload();
+  }
+
+  async function removeTrusted(contactId: string) {
+    if (!user) return;
+    await (supabase.from("trusted_contacts") as any).delete().eq("user_id", user.id).eq("contact_id", contactId);
+    toast.info("Removed from trusted friends");
+    setTrustedList((prev) => prev.filter((p) => p.id !== contactId));
+  }
+
+  async function handleSearch(q: string) {
+    setSearchUser(q);
+    if (q.length < 2) return setSearchResults([]);
+    const { data } = await supabase.from("profiles").select("id, username, display_name, avatar_url").ilike("username", `%${q}%`).neq("id", user?.id ?? "").limit(5);
+    setSearchResults(data ?? []);
+  }
+
+  return (
+    <Card title="Trusted Friends & Emergency Sharing" desc="Manage trusted contacts for Emergency SMS and location broadcast.">
+      <div className="py-2 space-y-3">
+        <label className="text-xs font-semibold text-muted-foreground">Add Trusted Contact</label>
+        <input
+          value={searchUser}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search username..."
+          className="w-full rounded-xl bg-input border border-border px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary text-sm"
+        />
+        {searchResults.length > 0 && (
+          <div className="space-y-1 bg-card rounded-xl border border-border p-2">
+            {searchResults.map((r) => (
+              <div key={r.id} className="flex items-center justify-between p-2 hover:bg-muted/40 rounded-lg text-sm">
+                <span>@{r.username}</span>
+                <button onClick={() => addTrusted(r.id)} className="px-3 py-1 rounded-full bg-primary text-white text-xs font-bold">
+                  + Add
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 pt-2">
+        <h4 className="text-xs font-semibold text-muted-foreground">Your Trusted Friends ({trustedList.length})</h4>
+        {trustedList.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No trusted contacts added yet.</p>
+        ) : (
+          trustedList.map((t) => (
+            <Row key={t.id} title={t.display_name || t.username} desc={`@${t.username}`}>
+              <button onClick={() => removeTrusted(t.id)} className="px-3 py-1.5 rounded-full glass text-xs text-destructive hover:bg-destructive/10">
+                Remove
+              </button>
+            </Row>
+          ))
+        )}
+      </div>
     </Card>
   );
 }

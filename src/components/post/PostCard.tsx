@@ -161,7 +161,7 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
       if (myReaction) {
         await supabase.from("reactions").delete().eq("post_id", post.id).eq("user_id", user.id);
       }
-      await supabase.from("reactions").insert({ post_id: post.id, user_id: user.id, reaction: emoji });
+      await (supabase.from("reactions") as any).insert({ post_id: post.id, user_id: user.id, reaction: emoji });
       setMyReaction(emoji);
     }
     loadCounts();
@@ -196,7 +196,7 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
       await supabase.from("posts").delete().eq("author_id", user.id).eq("reposted_from", post.id);
       toast.success("Un-reposted");
     } else {
-      await supabase.from("posts").insert({
+      await (supabase.from("posts") as any).insert({
         author_id: user.id,
         reposted_from: post.id,
         post_type: "text",
@@ -223,7 +223,7 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
-    const { error } = await supabase.from("comments").insert({
+    const { error } = await (supabase.from("comments") as any).insert({
       post_id: post.id,
       author_id: user.id,
       content: newComment.trim(),

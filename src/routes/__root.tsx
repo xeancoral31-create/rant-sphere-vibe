@@ -56,14 +56,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "RantSphere" },
+      { title: "OutLoud" },
       {
         name: "description",
         content:
           "Modern social platform for rants, thoughts, and MyDay stories. Share what's on your mind in real-time.",
       },
       { name: "theme-color", content: "#ff6b6b" },
-      { property: "og:title", content: "RantSphere" },
+      { property: "og:title", content: "OutLoud" },
       {
         property: "og:description",
         content:
@@ -71,7 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "RantSphere" },
+      { name: "twitter:title", content: "OutLoud" },
       {
         name: "twitter:description",
         content:

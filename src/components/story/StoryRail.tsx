@@ -434,7 +434,7 @@ function CreateStory({ onClose }: { onClose: () => void }) {
         media_url = JSON.stringify({ music: selectedMusic, sticker: selectedSticker });
       }
 
-      const { error } = await supabase.from("stories").insert({
+      const { error } = await (supabase.from("stories") as any).insert({
         author_id: user.id,
         content: content.trim() || null,
         media_url,

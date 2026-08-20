@@ -6,7 +6,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export const amIAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase.rpc("has_role", {
+    const { data } = await (context.supabase as any).rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
@@ -14,7 +14,7 @@ export const amIAdmin = createServerFn({ method: "GET" })
   });
 
 async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data } = await context.supabase.rpc("has_role", {
+  const { data } = await (context.supabase as any).rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
   });

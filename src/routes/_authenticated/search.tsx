@@ -31,7 +31,18 @@ export function SearchPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!q.trim() || q.trim().length < 2) {
+    if (!q.trim()) {
+      setUsers([]);
+      setPosts([]);
+      setMatchingMusic([]);
+      return;
+    }
+
+    // Strip leading @ so that "@xeancoral" and "xeancoral" both work
+    const raw = q.trim();
+    const term = raw.startsWith("@") ? raw.slice(1) : raw;
+
+    if (term.length < 1) {
       setUsers([]);
       setPosts([]);
       setMatchingMusic([]);
@@ -40,8 +51,6 @@ export function SearchPage() {
 
     setLoading(true);
     const timer = setTimeout(async () => {
-      const term = q.trim();
-
       const [usersRes, postsRes] = await Promise.all([
         supabase
           .from("profiles")
@@ -88,7 +97,7 @@ export function SearchPage() {
       <div>
         <h1 className="font-display text-3xl font-bold flex items-center gap-2">
           <Search className="w-7 h-7 text-primary" />
-          <span>Search RantSphere</span>
+          <span>Search OutLoud</span>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Find creators, rants, tags, and music across the entire sphere.

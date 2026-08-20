@@ -16,12 +16,12 @@ function TagPage() {
 
   async function load() {
     setLoading(true);
-    const { data: tagRow } = await supabase.from("hashtags").select("id").eq("tag", tag.toLowerCase()).maybeSingle();
+    const { data: tagRow } = await (supabase.from("hashtags") as any).select("id").eq("tag", tag.toLowerCase()).maybeSingle();
     if (!tagRow) { setPosts([]); setLoading(false); return; }
-    const { data: links } = await supabase.from("post_hashtags").select("post_id").eq("hashtag_id", tagRow.id);
-    const ids = (links ?? []).map(l => l.post_id);
+    const { data: links } = await (supabase.from("post_hashtags") as any).select("post_id").eq("hashtag_id", tagRow.id);
+    const ids = (links ?? []).map((l: any) => l.post_id);
     if (ids.length === 0) { setPosts([]); setLoading(false); return; }
-    let q = supabase.from("posts").select("*, profiles(username, display_name, avatar_url)").in("id", ids).eq("is_hidden", false);
+    let q = (supabase.from("posts") as any).select("*, profiles(username, display_name, avatar_url)").in("id", ids).eq("is_hidden", false);
     if (tab === "media") q = q.not("media_url", "is", null);
     q = q.order("created_at", { ascending: false }).limit(50);
     const { data } = await q;

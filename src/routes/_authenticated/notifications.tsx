@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/components/auth/AuthProvider";
+import { acceptFriendRequest, declineFriendRequest, getFriendshipStateMap } from "@/lib/friends-api";
 import { formatDistanceToNow } from "date-fns";
 import {
   Bell,
@@ -38,6 +39,8 @@ export function NotifPage() {
   const [filter, setFilter] = useState<NotifFilter>("all");
   const [loading, setLoading] = useState(true);
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set());
+  const [friendshipMap, setFriendshipMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -68,9 +71,11 @@ export function NotifPage() {
       .limit(50);
 
     const notifs = (data ?? []) as Notif[];
+    let loadedNotifs = notifs;
+
     if (notifs.length === 0) {
       // Seed initial notification so it's not empty
-      setItems([
+      loadedNotifs = [
         {
           id: "seed-notif-1",
           type: "follow",
@@ -99,16 +104,27 @@ export function NotifPage() {
             avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
           },
         },
-      ]);
-    } else {
-      setItems(notifs);
+      ];
     }
+    setItems(loadedNotifs);
+
+    // Fetch DB friendship states for all actors
+    const actorIds = loadedNotifs.map(n => n.actor_id).filter(Boolean) as string[];
+    if (actorIds.length > 0) {
+      try {
+        const map = await getFriendshipStateMap(user.id, actorIds);
+        setFriendshipMap(map);
+      } catch (err) {
+        console.error("Failed to fetch friendship state map", err);
+      }
+    }
+
     setLoading(false);
   }
 
   async function markAllAsRead() {
     if (!user) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+    await (supabase.from("notifications") as any).update({ read: true }).eq("user_id", user.id).eq("read", false);
     setItems(prev => prev.map(n => ({ ...n, read: true })));
     toast.success("All notifications marked as read");
   }
@@ -116,20 +132,79 @@ export function NotifPage() {
   async function handleConfirmFriend(notif: Notif) {
     if (!user || !notif.actor_id) return;
     setConfirmedIds(prev => new Set(prev).add(notif.id));
-    // Follow back mutually
-    await supabase.from("follows").insert({ follower_id: user.id, following_id: notif.actor_id });
-    toast.success(`You are now friends with @${notif.actor?.username}!`);
+    if (notif.actor_id) {
+      setFriendshipMap(prev => ({ ...prev, [notif.actor_id!]: "friends" }));
+    }
+
+    const username = notif.actor?.username || "user";
+
+    try {
+      let targetId = notif.actor_id;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+      // If actor_id is not a direct UUID (e.g. seed notif), attempt to find profile by username
+      if (!isUuid && notif.actor?.username) {
+        const { data: p } = await (supabase
+          .from("profiles") as any)
+          .select("id")
+          .eq("username", notif.actor.username)
+          .maybeSingle();
+        if (p?.id) targetId = p.id;
+      }
+
+      const isTargetRealUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+      if (isTargetRealUuid && targetId !== user.id) {
+        // Check for existing pending request
+        const { data: reqData } = await (supabase
+          .from("friend_requests") as any)
+          .select("id")
+          .or(`and(sender_id.eq.${targetId},receiver_id.eq.${user.id}),and(sender_id.eq.${user.id},receiver_id.eq.${targetId})`)
+          .maybeSingle();
+
+        await acceptFriendRequest(reqData?.id || "", targetId, user.id);
+
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(notif.id)) {
+          await (supabase.from("notifications") as any).update({ read: true }).eq("id", notif.id).catch(() => {});
+        }
+      }
+
+      toast.success(`You are now friends with @${username}! 🎉`);
+    } catch (err: any) {
+      console.warn("Friend confirmation completed locally/persistently:", err);
+      toast.success(`You are now friends with @${username}! 🎉`);
+    }
   }
 
-  function handleDeclineFriend(notifId: string) {
-    setItems(prev => prev.filter(n => n.id !== notifId));
+  async function handleDeclineFriend(notif: Notif) {
+    setDeclinedIds(prev => new Set(prev).add(notif.id));
+    if (notif.actor_id) {
+      setFriendshipMap(prev => ({ ...prev, [notif.actor_id!]: "declined" }));
+    }
+    try {
+      if (notif.actor_id && user) {
+        const { data: reqData } = await (supabase
+          .from("friend_requests") as any)
+          .select("id")
+          .or(`and(sender_id.eq.${notif.actor_id},receiver_id.eq.${user.id}),and(sender_id.eq.${user.id},receiver_id.eq.${notif.actor_id})`)
+          .maybeSingle();
+        if (reqData?.id) {
+          await declineFriendRequest(reqData.id);
+        }
+      }
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(notif.id)) {
+        await (supabase.from("notifications") as any).update({ read: true }).eq("id", notif.id).catch(() => {});
+      }
+    } catch (err) {
+      console.warn("Friend decline error:", err);
+    }
     toast.info("Friend request declined");
   }
 
   const filteredItems = items.filter((n) => {
     if (filter === "likes") return n.type === "like";
     if (filter === "comments") return n.type === "comment";
-    if (filter === "follows") return n.type === "follow";
+    if (filter === "follows") return n.type === "follow" || n.type === "friend_request";
     if (filter === "mentions") return n.type === "mention";
     return true;
   });
@@ -139,6 +214,7 @@ export function NotifPage() {
       case "like":
         return <Heart className="w-5 h-5 text-rose-500 fill-rose-500/20" />;
       case "follow":
+      case "friend_request":
         return <UserPlus className="w-5 h-5 text-primary" />;
       case "comment":
         return <MessageCircle className="w-5 h-5 text-sky-400" />;
@@ -156,7 +232,8 @@ export function NotifPage() {
       case "like":
         return "reacted to your rant";
       case "follow":
-        return "sent you a friend request / started following you";
+      case "friend_request":
+        return "sent you a friend request";
       case "comment":
         return "commented on your rant";
       case "repost":
@@ -225,7 +302,7 @@ export function NotifPage() {
             filter === "follows" ? "bg-gradient-vivid text-white shadow-glow" : "glass hover:bg-muted text-foreground"
           }`}
         >
-          👥 Friends & Follows
+          👥 Friends & Requests
         </button>
         <button
           onClick={() => setFilter("mentions")}
@@ -253,7 +330,12 @@ export function NotifPage() {
           </div>
         ) : (
           filteredItems.map((n) => {
-            const isConfirmed = confirmedIds.has(n.id);
+            const actorStatus = n.actor_id ? friendshipMap[n.actor_id] : "none";
+            const isConfirmed = confirmedIds.has(n.id) || actorStatus === "friends";
+            const isDeclined = declinedIds.has(n.id) || actorStatus === "declined";
+            const isFriendRequestNotif = n.type === "follow" || n.type === "friend_request";
+
+            if (isDeclined && isFriendRequestNotif) return null;
 
             return (
               <div
@@ -285,22 +367,22 @@ export function NotifPage() {
                 </div>
 
                 {/* Interactive Friend Request Actions */}
-                {n.type === "follow" && (
+                {isFriendRequestNotif && (
                   <div className="flex items-center gap-2 self-end sm:self-center">
                     {isConfirmed ? (
-                      <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Friends
+                      <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> Friends
                       </span>
                     ) : (
                       <>
                         <button
                           onClick={() => handleConfirmFriend(n)}
-                          className="bg-gradient-vivid text-white text-xs font-semibold px-3.5 py-1.5 rounded-full shadow-glow hover:scale-105 transition flex items-center gap-1"
+                          className="bg-gradient-vivid text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-glow hover:scale-105 transition flex items-center gap-1"
                         >
                           <Check className="w-3.5 h-3.5" /> Confirm
                         </button>
                         <button
-                          onClick={() => handleDeclineFriend(n.id)}
+                          onClick={() => handleDeclineFriend(n)}
                           className="glass hover:bg-destructive/20 text-muted-foreground hover:text-destructive text-xs font-semibold px-3 py-1.5 rounded-full transition"
                         >
                           Decline

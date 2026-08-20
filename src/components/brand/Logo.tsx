@@ -1,6 +1,6 @@
 import { Network } from "lucide-react";
 
-/** RantSphere brand mark. Keeps the circular gradient container from the original icon. */
+/** OutLoud brand mark. Keeps the circular gradient container from the original icon. */
 export function Logo({
   className = "w-9 h-9",
   plain = false,

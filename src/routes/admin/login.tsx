@@ -10,11 +10,11 @@ export const Route = createFileRoute("/admin/login")({
   component: AdminLogin,
   head: () => ({
     meta: [
-      { title: "Administrator Console — RantSphere" },
-      { name: "description", content: "Secure administrator sign-in for the RantSphere moderation console." },
+      { title: "Administrator Console — OutLoud" },
+      { name: "description", content: "Secure administrator sign-in for the OutLoud moderation console." },
       { name: "robots", content: "noindex" },
-      { property: "og:title", content: "Administrator Console — RantSphere" },
-      { property: "og:description", content: "Secure administrator sign-in for the RantSphere moderation console." },
+      { property: "og:title", content: "Administrator Console — OutLoud" },
+      { property: "og:description", content: "Secure administrator sign-in for the OutLoud moderation console." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -80,7 +80,7 @@ function AdminLogin() {
     <div className="min-h-screen grid place-items-center px-6 bg-[radial-gradient(ellipse_at_top,hsl(var(--muted)/0.5),hsl(var(--background)))]">
       <div className="w-full max-w-md">
         <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="w-4 h-4" /> Back to RantSphere
+          <ArrowLeft className="w-4 h-4" /> Back to OutLoud
         </Link>
         <div className="rounded-3xl border border-border bg-card/80 backdrop-blur p-8 shadow-card">
           <div className="flex items-center gap-3">

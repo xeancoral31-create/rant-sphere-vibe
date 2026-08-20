@@ -32,7 +32,7 @@ export function RegisterPage() {
           </Link>
           <Link to="/" className="flex items-center gap-2 text-white">
             <Logo className="w-6 h-6" plain />
-            <span className="font-display font-bold text-2xl">RantSphere</span>
+            <span className="font-display font-bold text-2xl">OutLoud</span>
           </Link>
         </div>
 
@@ -51,7 +51,7 @@ export function RegisterPage() {
           </Link>
           <Link to="/" className="lg:hidden flex items-center gap-2 mb-8 self-start">
             <Logo className="w-6 h-6 text-primary" plain />
-            <span className="font-display font-bold text-xl">RantSphere</span>
+            <span className="font-display font-bold text-xl">OutLoud</span>
           </Link>
           
           <SignUp routing="path" path="/register" fallbackRedirectUrl="/auth-redirect" signInFallbackRedirectUrl="/auth-redirect" />

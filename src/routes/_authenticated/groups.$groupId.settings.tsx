@@ -6,7 +6,7 @@ import {
   getGroupDetails, addGroupMember, removeGroupMember, leaveGroup,
   promoteToAdmin, demoteToMember, deleteGroup, updateGroupInfo,
   getFriends, uploadGroupAvatar, getTrustedContacts, addTrustedContact, removeTrustedContact,
-} from "@/lib/barkada-api";
+} from "@/lib/friends-api";
 import {
   ChevronLeft, Users, Settings, Camera, Trash2, LogOut, Crown, Shield,
   ShieldOff, UserPlus, UserMinus, Loader2, MoreVertical, Bell, BellOff,
@@ -41,7 +41,7 @@ function GroupSettingsPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [g, f, tc] = await Promise.all([
+      const [g, f, tc]: [any, any, any] = await Promise.all([
         getGroupDetails(groupId),
         getFriends(user!.id),
         getTrustedContacts(user!.id),

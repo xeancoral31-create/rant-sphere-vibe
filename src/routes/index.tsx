@@ -11,7 +11,7 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <Logo className="w-8 h-8 text-primary" plain />
-            <span className="font-display font-bold text-xl">RantSphere</span>
+            <span className="font-display font-bold text-xl">OutLoud</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground">Features</a>
@@ -110,7 +110,7 @@ function Landing() {
       </section>
 
       <footer className="py-8 px-6 border-t border-border/40 text-sm text-muted-foreground text-center">
-        © {new Date().getFullYear()} RantSphere. Speak loud.
+        © {new Date().getFullYear()} OutLoud. Speak loud.
       </footer>
     </div>
   );

@@ -1,9 +1,20 @@
 
 -- Enums
-CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
-CREATE TYPE public.post_type AS ENUM ('text', 'image', 'video', 'poll');
-CREATE TYPE public.notification_type AS ENUM ('like', 'comment', 'follow', 'mention', 'reply', 'share', 'story_view', 'message');
-CREATE TYPE public.report_status AS ENUM ('pending', 'resolved', 'dismissed');
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.post_type AS ENUM ('text', 'image', 'video', 'poll');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.notification_type AS ENUM ('like', 'comment', 'follow', 'mention', 'reply', 'share', 'story_view', 'message');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.report_status AS ENUM ('pending', 'resolved', 'dismissed');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Profiles
 CREATE TABLE public.profiles (
@@ -597,20 +608,24 @@ REVOKE ALL ON FUNCTION public.can_view_author(uuid, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_mutual(uuid, uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.can_view_author(uuid, uuid) TO authenticated, service_role;
 -- Create Enum for Call Types
-CREATE TYPE call_type AS ENUM ('voice', 'video');
+DO $$ BEGIN
+  CREATE TYPE call_type AS ENUM ('voice', 'video');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Create Enum for Call Status
-CREATE TYPE call_status AS ENUM (
-    'calling',
-    'ringing',
-    'accepted',
-    'connecting',
-    'connected',
-    'declined',
-    'missed',
-    'ended',
-    'failed'
-);
+DO $$ BEGIN
+  CREATE TYPE call_status AS ENUM (
+      'calling',
+      'ringing',
+      'accepted',
+      'connecting',
+      'connected',
+      'declined',
+      'missed',
+      'ended',
+      'failed'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Create Calls Table
 CREATE TABLE IF NOT EXISTS public.calls (

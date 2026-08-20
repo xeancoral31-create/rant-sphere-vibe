@@ -60,13 +60,13 @@ export function ProfilePage() {
 
   async function load() {
     // 1. Fetch user profile
-    const { data: p } = await supabase
-      .from("profiles")
+    const { data: p } = await (supabase
+      .from("profiles") as any)
       .select("*")
       .eq("username", username)
       .maybeSingle();
 
-    let currentProf = p;
+    let currentProf: any = p;
     if (!currentProf) {
       if (myProfile && (myProfile.username === username || user?.username === username)) {
         currentProf = myProfile;
@@ -79,7 +79,7 @@ export function ProfilePage() {
             username: seedPost.profiles.username,
             display_name: seedPost.profiles.display_name,
             avatar_url: seedPost.profiles.avatar_url,
-            bio: "Creating aesthetics and sharing thoughts in RantSphere ✨",
+            bio: "Creating aesthetics and sharing thoughts in OutLoud ✨",
             cover_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&h=400&fit=crop",
           };
         }
@@ -95,30 +95,30 @@ export function ProfilePage() {
 
     // 2. Fetch posts by this author ONLY (Strict ownership filter)
     const [{ data: ps }, { data: followersData }, { data: followingData }, isFollowing, { data: saved }] = await Promise.all([
-      supabase
-        .from("posts")
+      (supabase
+        .from("posts") as any)
         .select("*, profiles(username, display_name, avatar_url)")
         .eq("author_id", currentProf.id)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("follows")
+      (supabase
+        .from("follows") as any)
         .select("follower:profiles!follows_follower_id_fkey(id, username, display_name, avatar_url)")
         .eq("following_id", currentProf.id),
-      supabase
-        .from("follows")
+      (supabase
+        .from("follows") as any)
         .select("following:profiles!follows_following_id_fkey(id, username, display_name, avatar_url)")
         .eq("follower_id", currentProf.id),
       user
-        ? supabase
-            .from("follows")
+        ? (supabase
+            .from("follows") as any)
             .select("*")
             .eq("follower_id", user.id)
             .eq("following_id", currentProf.id)
             .maybeSingle()
         : Promise.resolve({ data: null }),
       user && user.id === currentProf.id
-        ? supabase
-            .from("bookmarks" as never)
+        ? (supabase
+            .from("bookmarks" as never) as any)
             .select("posts(*, profiles(username, display_name, avatar_url))")
             .eq("user_id", user.id)
         : Promise.resolve({ data: [] }),
@@ -157,8 +157,8 @@ export function ProfilePage() {
     if (!user || !profile) return toast.error("Please sign in");
     if (friendStatus === "friends") {
       // Unfriend
-      await supabase
-        .from("follows")
+      await (supabase
+        .from("follows") as any)
         .delete()
         .eq("follower_id", user.id)
         .eq("following_id", profile.id);
@@ -168,11 +168,11 @@ export function ProfilePage() {
     } else if (friendStatus === "none") {
       // Send friend request
       setFriendStatus("sent");
-      await supabase
-        .from("follows")
+      await (supabase
+        .from("follows") as any)
         .insert({ follower_id: user.id, following_id: profile.id });
-      await supabase
-        .from("notifications")
+      await (supabase
+        .from("notifications") as any)
         .insert({
           user_id: profile.id,
           actor_id: user.id,
@@ -188,8 +188,8 @@ export function ProfilePage() {
     if (!user || !profile) return;
     setSaving(true);
 
-    const { error } = await supabase
-      .from("profiles")
+    const { error } = await (supabase
+      .from("profiles") as any)
       .update({
         display_name: editName.trim() || null,
         bio: editBio.trim() || null,
@@ -231,20 +231,16 @@ export function ProfilePage() {
         });
 
   return (
-    <div className="max-w-4xl mx-auto pb-16">
-      {/* Cover Photo Banner */}
-      <div className="h-48 sm:h-64 bg-gradient-vivid relative overflow-hidden">
-        {profile.cover_url ? (
-          <img src={profile.cover_url} className="w-full h-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-900/60 via-pink-600/40 to-indigo-900/60" />
-        )}
-      </div>
-
-      <div className="px-4 sm:px-6 -mt-16 sm:-mt-20">
-        {/* Avatar & Action Button Row */}
-        <div className="flex items-end justify-between">
-          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full border-4 border-background bg-gradient-vivid grid place-items-center text-white font-bold text-4xl overflow-hidden shadow-2xl">
+    <div className="max-w-4xl mx-auto pb-16 pt-4 md:pt-8 px-4 sm:px-6">
+      {/* Profile Header Card */}
+      <div className="glass rounded-3xl p-6 md:p-10 shadow-2xl border border-white/10 backdrop-blur-xl mb-8 relative overflow-hidden bg-card/40 hover:bg-card/50 transition-colors duration-500">
+        {/* Abstract background blobs for aesthetics */}
+        <div className="absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-pink-500/20 rounded-full blur-[100px] pointer-events-none" />
+        
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
+          {/* Avatar */}
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-background/50 bg-gradient-vivid grid place-items-center text-white font-bold text-5xl overflow-hidden shadow-2xl shrink-0 ring-4 ring-primary/20 ring-offset-4 ring-offset-background/50">
             {profile.avatar_url ? (
               <img src={profile.avatar_url} className="w-full h-full object-cover" />
             ) : (
@@ -252,95 +248,78 @@ export function ProfilePage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Info */}
+          <div className="flex-1 text-center md:text-left mt-2 md:mt-0 w-full">
+            <h1 className="font-display text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent tracking-tight">
+              {profile.display_name || profile.username}
+            </h1>
+            <div className="text-sm font-medium text-primary mt-1">@{profile.username}</div>
+            
+            {profile.bio && (
+              <p className="text-sm text-foreground/80 mt-4 leading-relaxed max-w-lg mx-auto md:mx-0">
+                {profile.bio}
+              </p>
+            )}
+
+            {/* Stats */}
+            <div className="flex items-center justify-center md:justify-start gap-10 mt-8 bg-black/20 p-4 rounded-2xl border border-white/5 inline-flex w-full md:w-auto">
+              <div className="flex flex-col items-center">
+                <span className="font-display font-bold text-2xl text-foreground drop-shadow-sm">{stats.postsCount}</span>
+                <span className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase mt-1">Posts</span>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <button onClick={() => setFollowersModalOpen(true)} className="flex flex-col items-center hover:scale-105 transition-transform">
+                <span className="font-display font-bold text-2xl text-foreground drop-shadow-sm">{stats.followers}</span>
+                <span className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase mt-1">Followers</span>
+              </button>
+              <div className="w-px h-8 bg-white/10" />
+              <button onClick={() => setFollowingModalOpen(true)} className="flex flex-col items-center hover:scale-105 transition-transform">
+                <span className="font-display font-bold text-2xl text-foreground drop-shadow-sm">{stats.following}</span>
+                <span className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase mt-1">Following</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-row md:flex-col gap-3 w-full md:w-36 mt-6 md:mt-0 shrink-0">
             {isMe ? (
               <button
                 onClick={() => setEditModalOpen(true)}
-                className="glass rounded-full px-5 py-2 text-xs font-semibold hover:border-primary/50 transition flex items-center gap-1.5 shadow-sm"
+                className="w-full rounded-full bg-white/5 hover:bg-white/10 border border-white/10 py-3 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm backdrop-blur-md"
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
+                <Edit3 className="w-4 h-4" /> Edit Profile
               </button>
             ) : (
               <>
                 <Link
                   to="/messages"
-                  className="glass rounded-full px-4 py-2 text-xs font-semibold hover:bg-muted transition flex items-center gap-1.5 shadow-sm"
+                  className="w-full rounded-full bg-white/5 hover:bg-white/10 border border-white/10 py-3 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm backdrop-blur-md flex-1 md:flex-none"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Message</span>
+                  <MessageCircle className="w-4 h-4" /> Message
                 </Link>
-
-                {/* Add Friend / Request Sent / Friends Button */}
                 <button
                   onClick={handleAddFriend}
-                  className={`rounded-full px-5 py-2 text-xs font-semibold transition flex items-center gap-1.5 ${
+                  className={`w-full rounded-full py-3 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-lg backdrop-blur-md flex-1 md:flex-none ${
                     friendStatus === "friends"
-                      ? "glass text-foreground hover:bg-destructive/20 hover:text-destructive"
+                      ? "bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20"
                       : friendStatus === "sent"
-                      ? "bg-muted text-muted-foreground cursor-default"
-                      : "bg-gradient-vivid text-white shadow-glow hover:scale-105"
+                      ? "bg-white/5 text-muted-foreground border border-white/5 cursor-default"
+                      : "bg-gradient-vivid text-white shadow-glow hover:scale-105 hover:shadow-xl border-0"
                   }`}
                 >
                   {friendStatus === "friends" ? (
-                    <>
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Friends</span>
-                    </>
+                    <><UserCheck className="w-4 h-4" /> Friends</>
                   ) : friendStatus === "sent" ? (
-                    <>
-                      <Clock className="w-3.5 h-3.5 animate-spin" />
-                      <span>Request Sent</span>
-                    </>
+                    <><Clock className="w-4 h-4 animate-spin" /> Sent</>
                   ) : (
-                    <>
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>Add Friend</span>
-                    </>
+                    <><UserPlus className="w-4 h-4" /> Add Friend</>
                   )}
                 </button>
               </>
             )}
           </div>
         </div>
-
-        {/* Profile Info Header */}
-        <div className="mt-4 space-y-3">
-          <div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
-              {profile.display_name || profile.username}
-            </h1>
-            <div className="text-sm text-muted-foreground">@{profile.username}</div>
-          </div>
-
-          {profile.bio && (
-            <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed max-w-2xl">
-              {profile.bio}
-            </p>
-          )}
-
-          {/* Clickable Followers & Following Stats */}
-          <div className="flex items-center gap-6 text-sm pt-1">
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-foreground">{stats.postsCount}</span>
-              <span className="text-muted-foreground">Posts</span>
-            </div>
-            <button
-              onClick={() => setFollowersModalOpen(true)}
-              className="flex items-center gap-1.5 hover:text-primary transition"
-            >
-              <span className="font-bold text-foreground">{stats.followers}</span>
-              <span className="text-muted-foreground">Followers</span>
-            </button>
-            <button
-              onClick={() => setFollowingModalOpen(true)}
-              className="flex items-center gap-1.5 hover:text-primary transition"
-            >
-              <span className="font-bold text-foreground">{stats.following}</span>
-              <span className="text-muted-foreground">Following</span>
-            </button>
-          </div>
-        </div>
+      </div>
 
         {/* Strict Sub-Tabs: Posts | Photos | Videos | Reels | Music | Notes | Saved */}
         <div className="mt-8 border-b border-border/40 flex items-center gap-1 sm:gap-4 overflow-x-auto pb-1 scrollbar-none">
@@ -434,7 +413,6 @@ export function ProfilePage() {
             ))
           )}
         </div>
-      </div>
 
       {/* Followers Modal */}
       {followersModalOpen && (

@@ -21,6 +21,7 @@ import {
   Users,
   ChevronRight,
   Hash,
+  Play,
   Zap,
   Star,
   ArrowUpRight,
@@ -66,7 +67,7 @@ function MobileHomeHeader({
     >
       <Link to="/home" className="flex items-center gap-2.5">
         <Logo className="w-7 h-7 text-primary" plain />
-        <span className="font-display font-bold text-lg text-gradient">RantSphere</span>
+        <span className="font-display font-bold text-lg text-gradient">OutLoud</span>
       </Link>
 
       <div className="flex items-center gap-1.5">
@@ -268,7 +269,7 @@ function EmptyFeedState({ onCompose }: { onCompose: () => void }) {
           className="inline-flex items-center gap-2 rounded-full bg-gradient-vivid px-6 py-2.5 font-semibold text-sm text-white shadow-glow hover:scale-105 transition"
         >
           <Plus className="w-4 h-4" />
-          Create First Rant
+          Create First Note
         </button>
         <Link
           to="/explore"
@@ -539,6 +540,113 @@ function ActiveFriendsWidget({ currentUserId }: { currentUserId?: string }) {
   );
 }
 
+/** Funny & Trending Videos Widget for Home feed */
+function FunnyVideoFeedSection() {
+  const [liked, setLiked] = useState<Set<string>>(new Set());
+  const [saved, setSaved] = useState<Set<string>>(new Set());
+
+  const FUNNY_VIDEOS = [
+    {
+      id: "fv-1",
+      title: "Cat vs Laser Pointer Ultra Instinct 😼⚡",
+      creator: "paws_and_claws",
+      thumbnail: "https://images.unsplash.com/photo-1543852786-1cf6624b9987?w=600&h=400&fit=crop",
+      duration: "0:24",
+      views: "142.8K",
+      likesCount: 12400,
+    },
+    {
+      id: "fv-2",
+      title: "When the code works on the first try 😂💻",
+      creator: "dev_humor",
+      thumbnail: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop",
+      duration: "0:45",
+      views: "98.3K",
+      likesCount: 8900,
+    },
+    {
+      id: "fv-3",
+      title: "Dog trying boba for the first time 🧋🐶",
+      creator: "bark_vibes",
+      thumbnail: "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=600&h=400&fit=crop",
+      duration: "0:18",
+      views: "215.1K",
+      likesCount: 23100,
+    },
+  ];
+
+  function toggleLike(id: string) {
+    setLiked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSave(id: string) {
+    setSaved((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="glass rounded-3xl p-4 sm:p-5 border border-border/40 space-y-3 my-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-display font-bold text-base flex items-center gap-2">
+          <Flame className="w-4 h-4 text-rose-500 fill-rose-500/20" />
+          <span>Funny & Trending Clips</span>
+        </h2>
+        <Link to="/explore" className="text-xs text-primary font-semibold hover:underline flex items-center gap-0.5">
+          See All <ChevronRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {FUNNY_VIDEOS.map((vid) => {
+          const isLiked = liked.has(vid.id);
+          const isSaved = saved.has(vid.id);
+
+          return (
+            <div key={vid.id} className="relative rounded-2xl overflow-hidden glass border border-white/10 group hover:border-primary/50 transition">
+              <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+                <img src={vid.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt={vid.title} />
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition grid place-items-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-vivid grid place-items-center text-white shadow-glow group-hover:scale-110 transition">
+                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                  </div>
+                </div>
+                <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                  {vid.duration}
+                </span>
+                <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                  👁️ {vid.views}
+                </span>
+              </div>
+
+              <div className="p-3 space-y-1.5">
+                <div className="text-xs font-semibold text-foreground line-clamp-1">{vid.title}</div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
+                  <span className="truncate">@{vid.creator}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => toggleLike(vid.id)} className={`hover:scale-110 transition ${isLiked ? "text-rose-500 font-bold" : "hover:text-rose-400"}`}>
+                      ❤️ {vid.likesCount + (isLiked ? 1 : 0)}
+                    </button>
+                    <button onClick={() => toggleSave(vid.id)} className={`hover:scale-110 transition ${isSaved ? "text-amber-400 font-bold" : "hover:text-amber-400"}`}>
+                      ⭐
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export function HomePage() {
@@ -551,9 +659,33 @@ export function HomePage() {
   const [activeFilter, setActiveFilter] = useState<FeedFilter>("foryou");
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [hasNewPosts, setHasNewPosts] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const notifChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const activeFilterRef = useRef<FeedFilter>("foryou");
+
+  // 20-minute content rotation calculation
+  useEffect(() => {
+    const currentWindow = Math.floor(Date.now() / (20 * 60 * 1000));
+    const lastSeenWindowStr = localStorage.getItem("outloud_last_feed_window");
+    const lastSeenWindow = lastSeenWindowStr ? parseInt(lastSeenWindowStr, 10) : currentWindow;
+
+    if (currentWindow > lastSeenWindow) {
+      setHasNewPosts(true);
+    }
+    localStorage.setItem("outloud_last_feed_window", currentWindow.toString());
+
+    // Schedule check every 60 seconds
+    const interval = setInterval(() => {
+      const w = Math.floor(Date.now() / (20 * 60 * 1000));
+      const last = parseInt(localStorage.getItem("outloud_last_feed_window") || w.toString(), 10);
+      if (w > last) {
+        setHasNewPosts(true);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Data loading ──
 
@@ -586,9 +718,9 @@ export function HomePage() {
 
         const userPosts = (data ?? []) as PostWithMeta[];
         if (userPosts.length > 0) {
-          const existingIds = new Set(userPosts.map((p) => p.id));
-          const filteredSeed = SEED_POSTS.filter((p) => !existingIds.has(p.id));
-          setPosts([...userPosts, ...filteredSeed]);
+          // Only use DB posts when available — do NOT mix in seed data to prevent
+          // stale/duplicate posts appearing on refresh
+          setPosts(userPosts);
         } else {
           setPosts(SEED_POSTS);
         }
@@ -763,6 +895,21 @@ export function HomePage() {
           {/* 3. Feed Filters */}
           <FeedFilters active={activeFilter} onChange={handleFilterChange} />
 
+          {/* 3.5 Funny & Trending Video Carousel */}
+          <FunnyVideoFeedSection />
+
+          {/* 3.6 New Posts Available Banner (20-min content rotation) */}
+          {hasNewPosts && (
+            <button
+              onClick={() => { setHasNewPosts(false); load(activeFilter); }}
+              className="w-full py-2.5 px-4 rounded-full bg-gradient-vivid text-white text-xs font-bold shadow-glow flex items-center justify-center gap-2 hover:scale-[1.02] transition animate-pulse cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-yellow-300" />
+              <span>New posts available from scheduled 20-min rotation! Tap to update feed</span>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {/* 4. Feed Posts */}
           <div role="feed" aria-label="Posts feed" aria-busy={loading}>
             {loading ? (
@@ -815,7 +962,7 @@ export function HomePage() {
               <span>·</span>
               <Link to="/trending" className="hover:text-muted-foreground transition">Trending</Link>
             </div>
-            <p>© 2026 RantSphere. Speak freely.</p>
+            <p>© 2026 OutLoud. Speak freely.</p>
           </div>
         </aside>
       </div>
@@ -824,7 +971,7 @@ export function HomePage() {
       <button
         onClick={() => setComposeModalOpen(true)}
         className="md:hidden fixed bottom-20 right-4 z-30 w-14 h-14 rounded-full bg-gradient-vivid shadow-glow grid place-items-center text-white hover:scale-110 active:scale-95 transition-transform"
-        aria-label="Create a new rant"
+        aria-label="Create a new note"
       >
         <Plus className="w-6 h-6" />
       </button>

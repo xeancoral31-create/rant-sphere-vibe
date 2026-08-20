@@ -144,7 +144,7 @@ export function Trending() {
           <div className="flex items-center justify-between pb-2 border-b border-border/30">
             <h3 className="font-display font-bold text-lg flex items-center gap-2">
               <Award className="w-5 h-5 text-primary" />
-              <span>Top Soundtracks on RantSphere</span>
+              <span>Top Soundtracks on OutLoud</span>
             </h3>
             <span className="text-xs text-muted-foreground">Updated hourly</span>
           </div>

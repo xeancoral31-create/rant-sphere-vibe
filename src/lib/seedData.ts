@@ -37,7 +37,7 @@ export const SEED_POSTS: PostWithMeta[] = [
   {
     id: "demo-post-2",
     author_id: "demo-user-2",
-    content: "Just dropped a fresh lofi chill beat on RantSphere! Put on your headphones, relax, and let the sphere vibes take over. 🎧💜",
+    content: "Just dropped a fresh lofi chill beat on OutLoud! Put on your headphones, relax, and let the sphere vibes take over. 🎧💜",
     media_url: JSON.stringify(MUSIC_LIBRARY[0]),
     post_type: "music",
     is_anonymous: false,
@@ -221,7 +221,7 @@ export const DEMO_REELS: DemoReel[] = [
     thumbnail_url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=900&fit=crop",
     caption: "Neural network generative holographic shaders 🔮⚡",
     music_title: "Neural Groove 404",
-    music_artist: "RantSphere AI",
+    music_artist: "OutLoud AI",
     likes: 15600,
     comments: 489,
     is_ai: true,

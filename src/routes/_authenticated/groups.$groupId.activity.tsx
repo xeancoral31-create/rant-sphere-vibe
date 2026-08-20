@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { getGroupActivity, getGroupDetails } from "@/lib/barkada-api";
+import { getGroupActivity, getGroupDetails } from "@/lib/friends-api";
 import {
   ChevronLeft, Users, UserPlus, UserMinus, MapPin, Navigation,
   Image, Film, BarChart2, Settings, Pin, Loader2, RefreshCw,

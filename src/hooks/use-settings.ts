@@ -30,6 +30,28 @@ export function useSettings() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
+const defaultSettings: UserSettings = {
+  user_id: user?.id || "",
+  profile_visibility: "public",
+  post_default_audience: "public",
+  show_followers: true,
+  allow_messages_from: "everyone",
+  allow_tagging: true,
+  searchable: true,
+  notify_likes: true,
+  notify_comments: true,
+  notify_follows: true,
+  notify_messages: true,
+  notify_email: true,
+  language: "en",
+  region: "PH",
+  theme: "dark",
+  reduce_motion: false,
+  larger_text: false,
+  high_contrast: false,
+  autoplay_video: true,
+};
+
   const load = useCallback(async () => {
     if (!user) {
       setSettings(null);
@@ -37,20 +59,30 @@ export function useSettings() {
       return;
     }
     setLoading(true);
-    const { data } = await supabase
-      .from("user_settings")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (data) {
-      setSettings(data as unknown as UserSettings);
-    } else {
-      const { data: created } = await supabase
+    try {
+      const { data } = await supabase
         .from("user_settings")
-        .insert({ user_id: user.id } as never)
         .select("*")
+        .eq("user_id", user.id)
         .maybeSingle();
-      setSettings((created ?? null) as unknown as UserSettings | null);
+      if (data) {
+        setSettings(data as unknown as UserSettings);
+      } else {
+        const { data: created, error } = await supabase
+          .from("user_settings")
+          .insert({ user_id: user.id } as never)
+          .select("*")
+          .maybeSingle();
+        if (error) {
+          console.warn("Failed to insert settings, using fallback", error);
+          setSettings(defaultSettings);
+        } else {
+          setSettings((created ?? defaultSettings) as unknown as UserSettings);
+        }
+      }
+    } catch (err) {
+      console.warn("Database error loading settings, using fallback", err);
+      setSettings(defaultSettings);
     }
     setLoading(false);
   }, [user?.id]);
@@ -62,11 +94,15 @@ export function useSettings() {
   async function update(patch: Partial<UserSettings>) {
     if (!user || !settings) return;
     setSettings({ ...settings, ...patch });
-    const { error } = await supabase
-      .from("user_settings")
-      .update(patch as never)
-      .eq("user_id", user.id);
-    if (error) throw new Error(error.message);
+    try {
+      const { error } = await supabase
+        .from("user_settings")
+        .update(patch as never)
+        .eq("user_id", user.id);
+      if (error) console.warn("Failed to save settings remotely:", error);
+    } catch (err) {
+      console.warn("Error saving settings:", err);
+    }
   }
 
   return { settings, loading, update, reload: load };

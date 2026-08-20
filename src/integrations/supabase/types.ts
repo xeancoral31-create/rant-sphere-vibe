@@ -218,16 +218,25 @@ export type Database = {
           conversation_id: string
           joined_at: string
           user_id: string
+          role: string
+          muted_until: string | null
+          last_read_at: string | null
         }
         Insert: {
           conversation_id: string
           joined_at?: string
           user_id: string
+          role?: string
+          muted_until?: string | null
+          last_read_at?: string | null
         }
         Update: {
           conversation_id?: string
           joined_at?: string
           user_id?: string
+          role?: string
+          muted_until?: string | null
+          last_read_at?: string | null
         }
         Relationships: [
           {
@@ -243,11 +252,15 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       conversations: {
         Row: {
+          is_barkada: boolean
+          description: string | null
+          avatar_url: string | null
+          created_by: string | null
           created_at: string
           id: string
           is_group: boolean
@@ -255,6 +268,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          is_barkada?: boolean
+          description?: string | null
+          avatar_url?: string | null
+          created_by?: string | null
           created_at?: string
           id?: string
           is_group?: boolean
@@ -329,6 +346,11 @@ export type Database = {
       }
       messages: {
         Row: {
+          message_type: string
+          reply_to: string | null
+          metadata: any
+          client_id: string | null
+          edited_at: string | null
           content: string | null
           conversation_id: string
           created_at: string
@@ -338,6 +360,11 @@ export type Database = {
           sender_id: string
         }
         Insert: {
+          message_type?: string
+          reply_to?: string | null
+          metadata?: any
+          client_id?: string | null
+          edited_at?: string | null
           content?: string | null
           conversation_id: string
           created_at?: string
@@ -849,6 +876,91 @@ export type Database = {
         }
         Relationships: []
       }
+
+      friend_requests: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      friendships: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      group_activity: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      group_invitations: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      group_poll_options: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      group_poll_votes: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      group_polls: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      location_sharing_sessions: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      message_attachments: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          file_name: string | null
+          height: number | null
+          id: string
+          message_id: string
+          mime_type: string | null
+          size_bytes: number | null
+          thumbnail_url: string | null
+          url: string
+          width: number | null
+        }
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      message_reactions: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      pinned_messages: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      trusted_contacts: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
       user_settings: {
         Row: {
           allow_messages_from: string
@@ -897,6 +1009,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          message_type?: string
+          reply_to?: string | null
+          metadata?: any
+          client_id?: string | null
+          edited_at?: string | null
           allow_messages_from?: string
           allow_tagging?: boolean
           autoplay_video?: boolean
