@@ -1,184 +1,272 @@
 // @ts-nocheck
 /**
  * Friend & Group API helpers
- * All calls go through Supabase RLS — backend enforces authorization.
+ * Connected to robust user discovery & persistent friendship management.
  */
 import { supabase } from '@/integrations/supabase/client';
+import {
+  searchUsersFn,
+  getAllUsersFn,
+  getUserByUsernameFn,
+  type DiscoveredUser,
+} from './user-discovery.functions';
+import {
+  getFriendshipStateMapFn,
+  getMutualFriendsCountMapFn,
+  sendFriendRequestFn,
+  cancelFriendRequestFn,
+  acceptFriendRequestFn,
+  declineFriendRequestFn,
+  removeFriendFn,
+  getFriendsDataFn,
+} from './friends.functions';
 
 // ---- Helpers ----
 
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  // Fallback for older browsers
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 }
 
+// In-memory / Realtime event emitter for instant local state sync
+type SyncListener = () => void;
+const syncListeners = new Set<SyncListener>();
+
+export function subscribeFriendshipSync(callback: SyncListener): () => void {
+  syncListeners.add(callback);
+  return () => {
+    syncListeners.delete(callback);
+  };
+}
+
+export function notifyFriendshipSync(): void {
+  syncListeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {}
+  });
+}
+
 // ---- FRIEND REQUESTS ----
 
 export async function sendFriendRequest(senderId: string, receiverId: string) {
-  const { data, error } = await supabase
-    .from('friend_requests')
-    .insert({ sender_id: senderId, receiver_id: receiverId, status: 'pending' })
-    .select()
-    .single();
-  if (error) throw error;
-  // Create notification for receiver
-  await supabase.from('notifications').insert({
-    user_id: receiverId,
-    actor_id: senderId,
-    type: 'friend_request' as never,
-    content: 'sent you a friend request.',
-  }).then(() => {});
-  return data;
+  if (!senderId || !receiverId) throw new Error("Invalid sender or receiver ID");
+  if (senderId === receiverId) throw new Error("Cannot send friend request to yourself");
+
+  const res = await sendFriendRequestFn({
+    data: { senderId, receiverId },
+  });
+
+  // Attempt to write notification in Supabase (non-blocking)
+  try {
+    await supabase.from('notifications').insert({
+      user_id: receiverId,
+      actor_id: senderId,
+      type: 'friend_request' as never,
+      content: 'sent you a friend request.',
+    });
+  } catch {}
+
+  notifyFriendshipSync();
+  return res;
 }
 
 export async function acceptFriendRequest(requestId: string, senderId: string, receiverId: string) {
-  // Update request status if requestId is valid
-  if (requestId && !requestId.startsWith('seed-')) {
-    await supabase
-      .from('friend_requests')
-      .update({ status: 'accepted', updated_at: new Date().toISOString() })
-      .eq('id', requestId)
-      .catch(() => {});
-  }
+  const res = await acceptFriendRequestFn({
+    data: {
+      requestId: requestId || undefined,
+      senderId,
+      receiverId,
+    },
+  });
 
-  // Also update any pending friend request between sender and receiver by IDs
-  await supabase
-    .from('friend_requests')
-    .update({ status: 'accepted', updated_at: new Date().toISOString() })
-    .or(`and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`)
-    .catch(() => {});
+  // Notify in Supabase (non-blocking)
+  try {
+    await supabase.from('notifications').insert({
+      user_id: senderId,
+      actor_id: receiverId,
+      type: 'friend_accepted' as never,
+      content: 'accepted your friend request.',
+    });
+  } catch {}
 
-  // Ensure user_id_1 < user_id_2 for UNIQUE constraint
-  const [u1, u2] = [senderId, receiverId].sort();
-  const { error: fe } = await supabase
-    .from('friendships')
-    .insert({ user_id_1: u1, user_id_2: u2 });
-  if (fe && fe.code !== '23505') throw fe; // ignore duplicate
-
-  // Ensure mutual follow is recorded
-  await supabase
-    .from('follows')
-    .insert([
-      { follower_id: receiverId, following_id: senderId, status: 'accepted' },
-      { follower_id: senderId, following_id: receiverId, status: 'accepted' },
-    ])
-    .catch(() => {});
-
-  // Notify sender
-  await supabase.from('notifications').insert({
-    user_id: senderId,
-    actor_id: receiverId,
-    type: 'friend_accepted' as never,
-    content: 'accepted your friend request.',
-  }).then(() => {});
+  notifyFriendshipSync();
+  return res;
 }
 
-export async function declineFriendRequest(requestId: string) {
-  const { error } = await supabase
-    .from('friend_requests')
-    .update({ status: 'declined', updated_at: new Date().toISOString() })
-    .eq('id', requestId);
-  if (error) throw error;
+export async function declineFriendRequest(requestId: string, senderId?: string, receiverId?: string) {
+  const res = await declineFriendRequestFn({
+    data: {
+      requestId: requestId || undefined,
+      senderId: senderId || undefined,
+      receiverId: receiverId || undefined,
+    },
+  });
+  notifyFriendshipSync();
+  return res;
 }
 
 export async function cancelFriendRequest(requestId: string) {
-  const { error } = await supabase
-    .from('friend_requests')
-    .delete()
-    .eq('id', requestId);
-  if (error) throw error;
+  const res = await cancelFriendRequestFn({
+    data: {
+      senderId: "",
+      requestId,
+    },
+  });
+  notifyFriendshipSync();
+  return res;
+}
+
+export async function cancelFriendRequestByUser(senderId: string, receiverId: string) {
+  const res = await cancelFriendRequestFn({
+    data: {
+      senderId,
+      receiverId,
+    },
+  });
+  notifyFriendshipSync();
+  return res;
 }
 
 export async function removeFriend(userId: string, friendId: string) {
-  const [u1, u2] = [userId, friendId].sort();
-  const { error } = await supabase
-    .from('friendships')
-    .delete()
-    .eq('user_id_1', u1)
-    .eq('user_id_2', u2);
-  if (error) throw error;
+  const res = await removeFriendFn({
+    data: { userId, friendId },
+  });
+  notifyFriendshipSync();
+  return res;
 }
 
 export async function getFriends(userId: string) {
-  const { data, error } = await supabase
-    .from('friendships')
-    .select(`
-      id, created_at,
-      user_id_1, user_id_2,
-      profile1:profiles!friendships_user_id_1_fkey(id, username, display_name, avatar_url),
-      profile2:profiles!friendships_user_id_2_fkey(id, username, display_name, avatar_url)
-    `)
-    .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((f: any) => ({
-    friendship_id: f.id,
-    created_at: f.created_at,
-    friend: f.user_id_1 === userId ? f.profile2 : f.profile1,
-  }));
+  if (!userId) return [];
+  try {
+    const [{ friendIds }, { users }] = await Promise.all([
+      getFriendsDataFn({ data: { userId } }),
+      getAllUsersFn(),
+    ]);
+
+    const userMap = new Map<string, DiscoveredUser>();
+    users.forEach((u) => userMap.set(u.id, u));
+
+    return friendIds
+      .map((fid) => {
+        const u = userMap.get(fid);
+        if (!u) return null;
+        return {
+          friendship_id: `fs_${[userId, fid].sort().join('_')}`,
+          created_at: new Date().toISOString(),
+          friend: {
+            id: u.id,
+            username: u.username,
+            display_name: u.display_name,
+            full_name: u.full_name,
+            avatar_url: u.avatar_url,
+            bio: u.bio,
+            role: u.role,
+          },
+        };
+      })
+      .filter(Boolean);
+  } catch (err) {
+    console.error("Error in getFriends:", err);
+    return [];
+  }
 }
 
 export async function getPendingRequests(userId: string) {
-  const { data, error } = await supabase
-    .from('friend_requests')
-    .select('*, sender:profiles!friend_requests_sender_id_fkey(id, username, display_name, avatar_url)')
-    .eq('receiver_id', userId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  if (!userId) return [];
+  try {
+    const [{ pendingIncoming }, { users }] = await Promise.all([
+      getFriendsDataFn({ data: { userId } }),
+      getAllUsersFn(),
+    ]);
+
+    const userMap = new Map<string, DiscoveredUser>();
+    users.forEach((u) => userMap.set(u.id, u));
+
+    return pendingIncoming
+      .map((req) => {
+        const sender = userMap.get(req.sender_id);
+        if (!sender) return null;
+        return {
+          id: req.id,
+          sender_id: req.sender_id,
+          receiver_id: req.receiver_id,
+          status: req.status,
+          created_at: req.created_at,
+          sender: {
+            id: sender.id,
+            username: sender.username,
+            display_name: sender.display_name,
+            full_name: sender.full_name,
+            avatar_url: sender.avatar_url,
+            bio: sender.bio,
+            role: sender.role,
+          },
+        };
+      })
+      .filter(Boolean);
+  } catch (err) {
+    console.error("Error in getPendingRequests:", err);
+    return [];
+  }
 }
 
 export async function getSentRequests(userId: string) {
-  const { data, error } = await supabase
-    .from('friend_requests')
-    .select('*, receiver:profiles!friend_requests_receiver_id_fkey(id, username, display_name, avatar_url)')
-    .eq('sender_id', userId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data ?? [];
+  if (!userId) return [];
+  try {
+    const [{ pendingSent }, { users }] = await Promise.all([
+      getFriendsDataFn({ data: { userId } }),
+      getAllUsersFn(),
+    ]);
+
+    const userMap = new Map<string, DiscoveredUser>();
+    users.forEach((u) => userMap.set(u.id, u));
+
+    return pendingSent
+      .map((req) => {
+        const receiver = userMap.get(req.receiver_id);
+        if (!receiver) return null;
+        return {
+          id: req.id,
+          sender_id: req.sender_id,
+          receiver_id: req.receiver_id,
+          status: req.status,
+          created_at: req.created_at,
+          receiver: {
+            id: receiver.id,
+            username: receiver.username,
+            display_name: receiver.display_name,
+            full_name: receiver.full_name,
+            avatar_url: receiver.avatar_url,
+            bio: receiver.bio,
+            role: receiver.role,
+          },
+        };
+      })
+      .filter(Boolean);
+  } catch (err) {
+    console.error("Error in getSentRequests:", err);
+    return [];
+  }
 }
 
 export async function getFriendRequestStatus(
   currentUserId: string,
   targetUserId: string
 ): Promise<'friends' | 'sent' | 'received' | 'none'> {
-  // Check friendship
-  const [u1, u2] = [currentUserId, targetUserId].sort();
-  const { data: fs } = await supabase
-    .from('friendships')
-    .select('id')
-    .eq('user_id_1', u1)
-    .eq('user_id_2', u2)
-    .maybeSingle();
-  if (fs) return 'friends';
-
-  // Check outgoing
-  const { data: sent } = await supabase
-    .from('friend_requests')
-    .select('id')
-    .eq('sender_id', currentUserId)
-    .eq('receiver_id', targetUserId)
-    .eq('status', 'pending')
-    .maybeSingle();
-  if (sent) return 'sent';
-
-  // Check incoming
-  const { data: recv } = await supabase
-    .from('friend_requests')
-    .select('id')
-    .eq('sender_id', targetUserId)
-    .eq('receiver_id', currentUserId)
-    .eq('status', 'pending')
-    .maybeSingle();
-  if (recv) return 'received';
-
-  return 'none';
+  if (!currentUserId || !targetUserId || currentUserId === targetUserId) return 'none';
+  try {
+    const { map } = await getFriendshipStateMapFn({
+      data: { currentUserId, targetUserIds: [targetUserId] },
+    });
+    return map[targetUserId] || 'none';
+  } catch (err) {
+    console.error("Error getting friend request status:", err);
+    return 'none';
+  }
 }
 
 export async function getFriendshipStateMap(
@@ -188,40 +276,75 @@ export async function getFriendshipStateMap(
   const map: Record<string, 'friends' | 'sent' | 'received' | 'none'> = {};
   if (!currentUserId || !targetUserIds || targetUserIds.length === 0) return map;
 
-  const validTargetIds = targetUserIds.filter(Boolean);
-  validTargetIds.forEach((id) => { map[id] = 'none'; });
-
-  // Check friendships
-  const { data: friendships } = await supabase
-    .from('friendships')
-    .select('user_id_1, user_id_2')
-    .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`);
-
-  if (friendships) {
-    for (const f of friendships) {
-      const friendId = f.user_id_1 === currentUserId ? f.user_id_2 : f.user_id_1;
-      if (map[friendId] !== undefined) map[friendId] = 'friends';
-    }
+  try {
+    const validIds = targetUserIds.filter(Boolean);
+    const { map: resMap } = await getFriendshipStateMapFn({
+      data: { currentUserId, targetUserIds: validIds },
+    });
+    return resMap;
+  } catch (err) {
+    console.error("Error in getFriendshipStateMap:", err);
+    return map;
   }
+}
 
-  // Check pending requests
-  const { data: requests } = await supabase
-    .from('friend_requests')
-    .select('sender_id, receiver_id, status')
-    .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
-    .eq('status', 'pending');
+export async function getMutualFriendsCountMap(
+  currentUserId: string,
+  targetUserIds: string[]
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  if (!currentUserId || !targetUserIds || targetUserIds.length === 0) return counts;
 
-  if (requests) {
-    for (const r of requests) {
-      if (r.sender_id === currentUserId && map[r.receiver_id] === 'none') {
-        map[r.receiver_id] = 'sent';
-      } else if (r.receiver_id === currentUserId && map[r.sender_id] === 'none') {
-        map[r.sender_id] = 'received';
-      }
-    }
+  try {
+    const validIds = targetUserIds.filter((id) => id && id !== currentUserId);
+    const { map: resCounts } = await getMutualFriendsCountMapFn({
+      data: { currentUserId, targetUserIds: validIds },
+    });
+    return resCounts;
+  } catch (err) {
+    console.error("Error in getMutualFriendsCountMap:", err);
+    return counts;
   }
+}
 
-  return map;
+export async function searchDatabaseUsers(query: string, currentUserId?: string): Promise<any[]> {
+  const raw = query.trim();
+  const clean = raw.replace(/[@]/g, "").trim();
+  if (!clean) return [];
+
+  try {
+    const { users } = await searchUsersFn({
+      data: { q: clean, currentUserId },
+    });
+    return users ?? [];
+  } catch (e) {
+    console.error("Failed to search users:", e);
+    return [];
+  }
+}
+
+export async function getSuggestedUsers(userId: string, limit = 12): Promise<any[]> {
+  try {
+    const { users } = await getAllUsersFn();
+    return (users || []).filter((u) => u.id !== userId).slice(0, limit);
+  } catch (e) {
+    console.error("Failed to get suggested users:", e);
+    return [];
+  }
+}
+
+export async function getUserByUsername(username: string): Promise<any | null> {
+  const clean = username.replace(/[@]/g, "").trim();
+  if (!clean) return null;
+  try {
+    const { user } = await getUserByUsernameFn({
+      data: { username: clean },
+    });
+    return user;
+  } catch (e) {
+    console.error("Failed to get user by username:", e);
+    return null;
+  }
 }
 
 // ---- BARKADA GROUPS ----
@@ -734,16 +857,6 @@ export async function removeTrustedContact(userId: string, trustedUserId: string
   if (error) throw error;
 }
 
-// ---- SUGGESTED FRIENDS ----
-export async function getSuggestedUsers(userId: string, limit = 20) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, username, display_name, avatar_url')
-    .neq('id', userId)
-    .limit(limit);
-  if (error) throw error;
-  return data ?? [];
-}
 
 // ---- GROUP ACTIVITY ----
 export async function getGroupActivity(conversationId: string, limit = 30) {

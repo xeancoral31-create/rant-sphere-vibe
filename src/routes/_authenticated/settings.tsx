@@ -380,7 +380,7 @@ function AccountSection() {
 }
 
 function ProfileSection({ onSaved }: { onSaved: () => void }) {
-  const { profile, user } = useAuthContext();
+  const { profile, user, refreshProfile } = useAuthContext();
   const [form, setForm] = useState({ display_name: "", bio: "" });
   const [avatar, setAvatar] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -396,14 +396,17 @@ function ProfileSection({ onSaved }: { onSaved: () => void }) {
     if (avatar) {
       const ext = avatar.name.split(".").pop();
       const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("avatars").upload(path, avatar, { upsert: true });
-      if (!error) avatar_url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+      try {
+        const { error } = await supabase.storage.from("avatars").upload(path, avatar, { upsert: true });
+        if (!error) avatar_url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+      } catch {}
     }
     // @ts-ignore
     const { error } = await supabase.from("profiles").update({ ...form, avatar_url }).eq("id", user.id);
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Profile updated");
+    refreshProfile();
     onSaved();
   }
 

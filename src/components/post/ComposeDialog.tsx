@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/components/auth/AuthProvider";
@@ -21,6 +21,7 @@ import {
   Plus
 } from "lucide-react";
 import { MUSIC_LIBRARY, type MusicTrack } from "@/lib/music";
+import { LocationPickerModal, type LocationData } from "./LocationPickerModal";
 
 export type ComposerMode = "post" | "photo" | "video" | "note" | "music" | "poll";
 
@@ -52,9 +53,15 @@ export function ComposeDialog({
   const [content, setContent] = useState("");
   const [selectedBg, setSelectedBg] = useState("");
   const [privacy, setPrivacy] = useState<"public" | "followers" | "private">("public");
-  const [location, setLocation] = useState("");
-  const [showLocationInput, setShowLocationInput] = useState(false);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMode(initialMode);
+    }
+  }, [open, initialMode]);
   
   // Media files
   const [files, setFiles] = useState<File[]>([]);
@@ -83,8 +90,8 @@ export function ComposeDialog({
     setFilePreviews([]);
     setPollOptions(["", ""]);
     setSelectedMusic(null);
-    setLocation("");
-    setShowLocationInput(false);
+    setLocationData(null);
+    setShowLocationPicker(false);
     setShowEmojiPicker(false);
     if (audioRef.current) {
       audioRef.current.pause();
@@ -177,15 +184,37 @@ export function ComposeDialog({
         ? pollOptions.map(o => o.trim()).filter(Boolean).map(text => ({ text }))
         : null;
 
-      const fullContent = location.trim() ? `${content.trim()}\n📍 ${location.trim()}` : content.trim();
-
-      const { error } = await (supabase.from("posts") as any).insert({
+      const insertPayload: Record<string, any> = {
         author_id: user.id,
-        content: fullContent || null,
+        content: content.trim() || null,
         media_url: uploadedMediaUrl,
         post_type: postType as never,
         poll_options: poll_data as never,
-      });
+      };
+
+      // Attach location data as separate columns if selected
+      if (locationData) {
+        insertPayload.location_name = locationData.locationName;
+        insertPayload.latitude = locationData.latitude;
+        insertPayload.longitude = locationData.longitude;
+        insertPayload.formatted_address = locationData.formattedAddress;
+        insertPayload.location_privacy = locationData.privacyLevel;
+      }
+
+      // Ensure user profile exists in profiles table before posting
+      try {
+        const cleanUsername = (user.username || user.firstName || "user")
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, "");
+        await (supabase.from("profiles") as any).upsert({
+          id: user.id,
+          username: profile?.username || cleanUsername || `user_${user.id.slice(0, 8)}`,
+          display_name: profile?.display_name || user.fullName || user.username || "User",
+          avatar_url: profile?.avatar_url || user.imageUrl || null,
+        }, { onConflict: "id" });
+      } catch {}
+
+      const { error } = await (supabase.from("posts") as any).insert(insertPayload);
 
       if (error) throw error;
 
@@ -454,22 +483,36 @@ export function ComposeDialog({
           </div>
         )}
 
-        {/* Location input row */}
-        {showLocationInput && (
-          <div className="flex items-center gap-2 bg-muted/40 px-3 py-1.5 rounded-xl border border-border/40">
-            <MapPin className="w-4 h-4 text-primary" />
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Add location (e.g. Tokyo, Shibuya)"
-              className="bg-transparent text-xs outline-none flex-1"
-            />
-            <button onClick={() => { setShowLocationInput(false); setLocation(""); }} className="text-muted-foreground">
+        {/* Location chip — shows when a location is selected */}
+        {locationData && (
+          <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-3 py-2 rounded-xl animate-fade-in">
+            <MapPin className="w-4 h-4 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-foreground truncate">📍 {locationData.locationName}</div>
+              <div className="text-[10px] text-muted-foreground capitalize">{locationData.privacyLevel} · {locationData.formattedAddress.substring(0, 40)}{locationData.formattedAddress.length > 40 ? "…" : ""}</div>
+            </div>
+            <button
+              onClick={() => setShowLocationPicker(true)}
+              className="text-xs text-primary hover:underline font-medium shrink-0"
+            >
+              Change
+            </button>
+            <button
+              onClick={() => setLocationData(null)}
+              className="text-muted-foreground hover:text-foreground shrink-0"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
+
+        {/* Location picker modal */}
+        <LocationPickerModal
+          open={showLocationPicker}
+          onOpenChange={setShowLocationPicker}
+          onConfirm={(data) => setLocationData(data)}
+          initialLocation={locationData}
+        />
 
         {/* Quick Emoji Bar */}
         {showEmojiPicker && (
@@ -521,11 +564,13 @@ export function ComposeDialog({
             </button>
             <button
               type="button"
-              onClick={() => setShowLocationInput(!showLocationInput)}
-              className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition"
+              onClick={() => setShowLocationPicker(true)}
+              className={`p-2 rounded-full hover:bg-muted transition ${
+                locationData ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"
+              }`}
               title="Add location"
             >
-              <MapPin className="w-5 h-5 text-rose-500" />
+              <MapPin className={`w-5 h-5 ${locationData ? "text-primary" : "text-rose-500"}`} />
             </button>
           </div>
 

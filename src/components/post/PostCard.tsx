@@ -18,11 +18,15 @@ import {
   MapPin,
   Send,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
+  Maximize
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { type MusicTrack } from "@/lib/music";
+import { PostLocationModal } from "./PostLocationModal";
+import { VideoPlayerModal } from "./VideoPlayerModal";
 
 const REACTIONS = ["like", "love", "laugh", "wow", "sad", "fire"] as const;
 const EMOJI: Record<string, string> = {
@@ -45,6 +49,12 @@ export interface PostWithMeta {
   poll_options?: { text: string }[] | null;
   reposted_from?: string | null;
   created_at: string;
+  // Location fields (optional — only populated if user added a location)
+  location_name?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string | null;
+  location_privacy?: string | null;
   profiles?: { username: string; display_name: string | null; avatar_url: string | null } | null;
 }
 
@@ -88,6 +98,10 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
   const [showHeartPop, setShowHeartPop] = useState(false);
   const lastTapRef = useRef<number>(0);
 
+  // Video state
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState(false);
+
   // Music state
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -95,6 +109,9 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
   // Poll state
   const [pollVotes, setPollVotes] = useState<Record<number, number>>({});
   const [myVote, setMyVote] = useState<number | null>(null);
+
+  // Location modal state
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   useEffect(() => {
     loadCounts();
@@ -353,11 +370,38 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
 
       {/* 4. Photo/Video Media */}
       {post.media_url && !musicData && !gradientBg && !noteData && (
-        <div className="mt-3 rounded-2xl overflow-hidden border border-border/40 bg-black/40">
-          {post.post_type === "video" || post.media_url.includes(".mp4") || post.media_url.includes(".webm") ? (
-            <video src={post.media_url} controls playsInline className="w-full max-h-[500px] object-contain mx-auto" />
+        <div className="mt-3 rounded-2xl overflow-hidden border border-border/40 bg-black/40 relative group/media">
+          {post.post_type === "video" || post.media_url.includes(".mp4") || post.media_url.includes(".webm") || post.media_url.includes(".mov") ? (
+            videoLoadError ? (
+              <div className="p-8 text-center bg-black/60 space-y-2">
+                <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+                <p className="text-xs text-muted-foreground">Unable to load this video. Please try again.</p>
+              </div>
+            ) : (
+              <div className="relative">
+                <video
+                  src={post.media_url}
+                  controls
+                  playsInline
+                  onError={() => setVideoLoadError(true)}
+                  className="w-full max-h-[500px] object-contain mx-auto"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setVideoModalOpen(true);
+                  }}
+                  className="absolute top-3 right-3 bg-black/70 hover:bg-black text-white px-2.5 py-1 rounded-lg opacity-0 group-hover/media:opacity-100 transition text-xs flex items-center gap-1 font-semibold backdrop-blur-md cursor-pointer z-10"
+                  title="Watch in theater mode"
+                >
+                  <Maximize className="w-3.5 h-3.5" />
+                  <span>Theater</span>
+                </button>
+              </div>
+            )
           ) : (
-            <img src={post.media_url} alt="post media" className="w-full max-h-[550px] object-cover" />
+            <img src={post.media_url} alt="post media" loading="lazy" className="w-full max-h-[550px] object-cover" />
           )}
         </div>
       )}
@@ -449,6 +493,33 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
             );
           })}
         </div>
+      )}
+
+      {/* 7. Location Chip — shown when post has a location and privacy allows */}
+      {post.latitude && post.location_name && post.location_privacy !== "private" && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowLocationModal(true); }}
+            className="mt-3 flex items-center gap-2 bg-primary/8 border border-primary/25 hover:bg-primary/15 hover:border-primary/50 px-3 py-2 rounded-xl text-xs font-semibold text-primary transition w-fit max-w-full group/loc"
+          >
+            <MapPin className="w-3.5 h-3.5 shrink-0 group-hover/loc:scale-110 transition" />
+            <span className="truncate">{post.location_name}</span>
+            {post.location_privacy === "approximate" && (
+              <span className="text-[10px] text-muted-foreground ml-1 font-normal shrink-0">(approx.)</span>
+            )}
+          </button>
+
+          <PostLocationModal
+            open={showLocationModal}
+            onOpenChange={setShowLocationModal}
+            latitude={post.latitude}
+            longitude={post.longitude!}
+            locationName={post.location_name}
+            formattedAddress={post.formatted_address}
+            privacyLevel={post.location_privacy || "public"}
+          />
+        </>
       )}
 
       {/* Reaction & Action Toolbar */}
@@ -580,6 +651,21 @@ export function PostCard({ post, onChange }: { post: PostWithMeta; onChange?: ()
             )}
           </div>
         </div>
+      )}
+
+      {post.media_url && (post.post_type === "video" || post.media_url.includes(".mp4") || post.media_url.includes(".webm") || post.media_url.includes(".mov")) && (
+        <VideoPlayerModal
+          open={videoModalOpen}
+          onClose={() => setVideoModalOpen(false)}
+          videoUrl={post.media_url}
+          title={post.content || undefined}
+          creator={{
+            username: author?.username || "user",
+            display_name: author?.display_name || undefined,
+            avatar_url: author?.avatar_url || undefined,
+          }}
+          likesCount={totalReactions}
+        />
       )}
     </article>
   );

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthContext } from "@/components/auth/AuthProvider";
 import { PostCard, type PostWithMeta } from "@/components/post/PostCard";
 import {
   Compass,
@@ -25,7 +26,9 @@ import {
   ChevronUp,
   X,
   UserPlus,
-  Check
+  Check,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { MUSIC_LIBRARY, type MusicTrack } from "@/lib/music";
 import { SEED_POSTS, DEMO_REELS, type DemoReel } from "@/lib/seedData";
@@ -41,8 +44,14 @@ const VIDEO_CATEGORIES: VideoCategory[] = [
 ];
 
 export function ExplorePage() {
+  const { user } = useAuthContext();
   const [posts, setPosts] = useState<PostWithMeta[]>([]);
   const [creators, setCreators] = useState<any[]>([]);
+  const [creatorsPool, setCreatorsPool] = useState<any[]>([]);
+  const [creatorsLoading, setCreatorsLoading] = useState(true);
+  const [creatorsError, setCreatorsError] = useState(false);
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set());
+  const [followingInProgress, setFollowingInProgress] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterType>("all");
   const [videoCategory, setVideoCategory] = useState<VideoCategory>("For You");
   const [loading, setLoading] = useState(true);
@@ -52,7 +61,6 @@ export function ExplorePage() {
   const [selectedReelIndex, setSelectedReelIndex] = useState<number | null>(null);
   const [likedReels, setLikedReels] = useState<Set<string>>(new Set());
   const [savedReels, setSavedReels] = useState<Set<string>>(new Set());
-  const [followedCreators, setFollowedCreators] = useState<Set<string>>(new Set());
 
   // Music preview
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
@@ -60,8 +68,11 @@ export function ExplorePage() {
 
   useEffect(() => {
     loadContent();
-    loadCreators();
   }, [filter, videoCategory]);
+
+  useEffect(() => {
+    if (user?.id) loadCreators();
+  }, [user?.id]);
 
   async function loadContent() {
     setLoading(true);
@@ -108,21 +119,105 @@ export function ExplorePage() {
     setLoading(false);
   }
 
-  async function loadCreators() {
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, username, display_name, avatar_url, bio")
-      .limit(8);
+  const loadCreators = useCallback(async () => {
+    if (!user?.id) return;
+    setCreatorsLoading(true);
+    setCreatorsError(false);
 
-    if (data && data.length > 0) {
-      setCreators(data);
-    } else {
-      setCreators([
-        { id: "c1", username: "cyber_nova", display_name: "Nova Cyber 🌌", avatar_url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop" },
-        { id: "c2", username: "lofi_dreamer", display_name: "Lofi Dreamer 🎵", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop" },
-        { id: "c3", username: "kenji_tokyo", display_name: "Kenji Sato 🗼", avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop" },
-        { id: "c4", username: "bionic_architect", display_name: "Aura AI Lab 🔮", avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop" },
-      ]);
+    try {
+      // 1. Fetch who the current user already follows
+      const { data: followData } = await (supabase
+        .from("follows") as any)
+        .select("following_id")
+        .eq("follower_id", user.id);
+
+      const alreadyFollowedIds = new Set<string>(
+        (followData ?? []).map((f: any) => f.following_id as string)
+      );
+      setFollowedIds(alreadyFollowedIds);
+
+      // 2. Fetch eligible creators — exclude self and already-followed users
+      const { data: profileData, error } = await (supabase
+        .from("profiles") as any)
+        .select("id, username, display_name, avatar_url, bio, updated_at")
+        .neq("id", user.id)         // NEVER show the current user
+        .not("username", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(40);
+
+      if (error) throw error;
+
+      const eligible = (profileData ?? []).filter(
+        (p: any) =>
+          p.username &&
+          p.username.trim() !== "" &&
+          !alreadyFollowedIds.has(p.id)
+      );
+
+      // 3. Shuffle for variety and show first 6
+      const shuffled = eligible.sort(() => Math.random() - 0.5);
+      setCreatorsPool(shuffled);
+      setCreators(shuffled.slice(0, 6));
+    } catch (err) {
+      console.error("Creator load error:", err);
+      setCreatorsError(true);
+    } finally {
+      setCreatorsLoading(false);
+    }
+  }, [user?.id]);
+
+  async function handleFollow(creator: any) {
+    if (!user?.id || followingInProgress.has(creator.id)) return;
+
+    setFollowingInProgress(prev => new Set(prev).add(creator.id));
+
+    try {
+      const alreadyFollowing = followedIds.has(creator.id);
+
+      if (alreadyFollowing) {
+        // Unfollow
+        await (supabase.from("follows") as any)
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", creator.id);
+
+        setFollowedIds(prev => {
+          const next = new Set(prev);
+          next.delete(creator.id);
+          return next;
+        });
+        toast.info(`Unfollowed @${creator.username}`);
+      } else {
+        // Follow — upsert to prevent duplicates
+        await (supabase.from("follows") as any)
+          .upsert(
+            { follower_id: user.id, following_id: creator.id },
+            { onConflict: "follower_id,following_id" }
+          );
+
+        setFollowedIds(prev => new Set(prev).add(creator.id));
+        toast.success(`Now following @${creator.username}! 🎉`);
+
+        // Remove from recommendations and pull in a replacement
+        setCreators(prev => {
+          const remaining = prev.filter(c => c.id !== creator.id);
+          // Find a replacement from the pool not already shown or followed
+          const shown = new Set(remaining.map((c: any) => c.id));
+          const replacement = creatorsPool.find(
+            (c: any) => !shown.has(c.id) && c.id !== creator.id && !followedIds.has(c.id)
+          );
+          return replacement ? [...remaining, replacement] : remaining;
+        });
+      }
+    } catch (err) {
+      console.error("Follow error:", err);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setFollowingInProgress(prev => {
+        const next = new Set(prev);
+        next.delete(creator.id);
+        return next;
+      });
     }
   }
 
@@ -137,20 +232,6 @@ export function ExplorePage() {
         audioRef.current.play().catch(() => {});
       }
     }
-  }
-
-  function toggleFollow(username: string) {
-    setFollowedCreators((prev) => {
-      const next = new Set(prev);
-      if (next.has(username)) {
-        next.delete(username);
-        toast.info(`Unfollowed @${username}`);
-      } else {
-        next.add(username);
-        toast.success(`Followed @${username}!`);
-      }
-      return next;
-    });
   }
 
   const activeReel = selectedReelIndex !== null ? DEMO_REELS[selectedReelIndex] : null;
@@ -306,40 +387,121 @@ export function ExplorePage() {
               <Users className="w-4 h-4 text-primary" />
               <span>Creators You May Know</span>
             </h2>
+            <button
+              onClick={loadCreators}
+              disabled={creatorsLoading}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition disabled:opacity-50 cursor-pointer"
+              title="Refresh suggestions"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${creatorsLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
-            {creators.map((c) => {
-              const isFollowed = followedCreators.has(c.username);
-              return (
-                <div
-                  key={c.id}
-                  className="glass rounded-2xl p-4 flex flex-col items-center text-center gap-2 min-w-[140px] max-w-[150px] flex-shrink-0 hover:scale-105 transition border border-border/40 group"
-                >
-                  <Link to="/profile/$username" params={{ username: c.username || "user" }}>
-                    <div className="w-14 h-14 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold overflow-hidden shadow-glow">
-                      {c.avatar_url ? (
-                        <img src={c.avatar_url} className="w-full h-full object-cover" alt="" />
-                      ) : (
-                        c.username?.[0]?.toUpperCase() || "U"
-                      )}
-                    </div>
-                  </Link>
-                  <div className="font-semibold text-xs truncate max-w-[120px] group-hover:text-primary transition">
-                    {c.display_name || c.username}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">@{c.username}</span>
-                  <button
-                    onClick={() => toggleFollow(c.username)}
-                    className={`mt-1 w-full text-[10px] font-semibold py-1 rounded-full shadow-sm transition ${
-                      isFollowed ? "bg-muted text-muted-foreground" : "bg-gradient-vivid text-white"
-                    }`}
-                  >
-                    {isFollowed ? "✓ Following" : "Follow"}
-                  </button>
+
+          {/* Loading Skeletons */}
+          {creatorsLoading && (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="glass rounded-2xl p-4 flex flex-col items-center gap-2.5 min-w-[140px] max-w-[150px] flex-shrink-0 border border-border/30 animate-pulse">
+                  <div className="w-14 h-14 rounded-full bg-muted/60" />
+                  <div className="h-2.5 w-20 rounded-full bg-muted/60" />
+                  <div className="h-2 w-14 rounded-full bg-muted/40" />
+                  <div className="h-6 w-full rounded-full bg-muted/40 mt-1" />
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error State */}
+          {!creatorsLoading && creatorsError && (
+            <div className="glass rounded-2xl p-6 border border-border/30 text-center space-y-2">
+              <AlertCircle className="w-6 h-6 text-muted-foreground mx-auto" />
+              <p className="text-sm text-muted-foreground">Unable to load creator recommendations.</p>
+              <button
+                onClick={loadCreators}
+                className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!creatorsLoading && !creatorsError && creators.length === 0 && (
+            <div className="glass rounded-2xl p-6 border border-border/30 text-center space-y-2">
+              <Users className="w-6 h-6 text-muted-foreground mx-auto" />
+              <p className="text-sm text-muted-foreground">No new creators to recommend right now.</p>
+              <p className="text-xs text-muted-foreground">Check back later to discover more people in the OutLoud community.</p>
+              <button
+                onClick={loadCreators}
+                className="text-xs text-primary font-semibold hover:underline cursor-pointer mt-1"
+              >
+                Refresh Suggestions
+              </button>
+            </div>
+          )}
+
+          {/* Creator Cards */}
+          {!creatorsLoading && !creatorsError && creators.length > 0 && (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none">
+              {creators.map((c) => {
+                const isFollowed = followedIds.has(c.id);
+                const isPending = followingInProgress.has(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className="glass rounded-2xl p-4 flex flex-col items-center text-center gap-2 min-w-[148px] max-w-[160px] flex-shrink-0 hover:scale-105 hover:border-primary/40 transition-all border border-border/40 group"
+                  >
+                    {/* Avatar — links to profile */}
+                    <Link to="/profile/$username" params={{ username: c.username || "user" }}>
+                      <div className="w-14 h-14 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold text-lg overflow-hidden shadow-glow ring-2 ring-transparent group-hover:ring-primary/40 transition">
+                        {c.avatar_url ? (
+                          <img src={c.avatar_url} className="w-full h-full object-cover" alt={c.username} />
+                        ) : (
+                          (c.display_name?.[0] || c.username?.[0] || "U").toUpperCase()
+                        )}
+                      </div>
+                    </Link>
+
+                    {/* Display name */}
+                    <Link to="/profile/$username" params={{ username: c.username || "user" }} className="leading-tight">
+                      <div className="font-semibold text-xs truncate max-w-[130px] group-hover:text-primary transition">
+                        {c.display_name || c.username}
+                      </div>
+                    </Link>
+
+                    {/* @username */}
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[130px]">@{c.username}</span>
+
+                    {/* Bio snippet */}
+                    {c.bio && (
+                      <span className="text-[9px] text-muted-foreground line-clamp-2 max-w-[130px] leading-relaxed">{c.bio}</span>
+                    )}
+
+                    {/* Follow / Following Button */}
+                    <button
+                      onClick={() => handleFollow(c)}
+                      disabled={isPending}
+                      className={`mt-auto w-full text-[10px] font-bold py-1.5 rounded-full shadow-sm transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-60 ${
+                        isFollowed
+                          ? "bg-muted/60 text-muted-foreground hover:bg-destructive/20 hover:text-rose-400 border border-border/50"
+                          : "bg-gradient-vivid text-white shadow-glow hover:scale-105"
+                      }`}
+                      title={isFollowed ? "Unfollow" : `Follow @${c.username}`}
+                    >
+                      {isPending ? (
+                        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : isFollowed ? (
+                        <><Check className="w-3 h-3" /> Following</>
+                      ) : (
+                        <><UserPlus className="w-3 h-3" /> Follow</>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -504,10 +666,13 @@ export function ExplorePage() {
                   <div className="text-white text-xs font-bold flex items-center gap-1">
                     <span>@{activeReel.author.username}</span>
                     <button
-                      onClick={() => toggleFollow(activeReel.author.username)}
+                      onClick={() => {
+                        const reelCreator = { id: activeReel.author.username, username: activeReel.author.username };
+                        handleFollow(reelCreator);
+                      }}
                       className="text-[10px] text-primary hover:underline font-semibold ml-1"
                     >
-                      {followedCreators.has(activeReel.author.username) ? "Following" : "+ Follow"}
+                      {followedIds.has(activeReel.author.username) ? "Following" : "+ Follow"}
                     </button>
                   </div>
                   {activeReel.is_ai && (

@@ -2,13 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuthContext } from "@/components/auth/AuthProvider";
 import {
-  getFriends, getPendingRequests, getBarkadaGroups, getSuggestedUsers,
-  acceptFriendRequest, declineFriendRequest, sendFriendRequest, getFriendRequestStatus, removeFriend,
+  getFriends, getPendingRequests, getSentRequests, getBarkadaGroups, getSuggestedUsers,
+  acceptFriendRequest, declineFriendRequest, sendFriendRequest, getFriendRequestStatus, removeFriend, cancelFriendRequest,
+  subscribeFriendshipSync
 } from "@/lib/friends-api";
 import {
   Users, UserPlus, Bell, Users2, Compass, Check, X, Loader2,
   MessageCircle, Phone, Video, Search, ChevronRight, UserMinus, UserCheck,
-  AlertTriangle, RefreshCw, SlidersHorizontal, Eye
+  AlertTriangle, RefreshCw, SlidersHorizontal, Eye, Clock
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -22,8 +23,10 @@ function FriendsPage() {
   const { user } = useAuthContext();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
+  const [requestsSubTab, setRequestsSubTab] = useState<"incoming" | "sent">("incoming");
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
   const [friendStatuses, setFriendStatuses] = useState<Record<string, string>>({});
@@ -37,6 +40,10 @@ function FriendsPage() {
 
   useEffect(() => {
     if (user) loadAll();
+    const unsub = subscribeFriendshipSync(() => {
+      if (user) loadAll();
+    });
+    return () => unsub();
   }, [user?.id]);
 
   async function loadAll() {
@@ -44,14 +51,16 @@ function FriendsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [f, r, g, s] = await Promise.all([
+      const [f, r, sReqs, g, s] = await Promise.all([
         getFriends(user.id),
         getPendingRequests(user.id),
+        getSentRequests(user.id),
         getBarkadaGroups(user.id),
         getSuggestedUsers(user.id, 20),
       ]);
       setFriends(f);
       setRequests(r);
+      setSentRequests(sReqs);
       setGroups(g);
 
       // Filter out existing friends from suggestions
@@ -100,6 +109,19 @@ function FriendsPage() {
       toast.error("Failed to decline request");
     } finally {
       setActionLoading((prev) => ({ ...prev, [req.id]: false }));
+    }
+  }
+
+  async function handleCancelSent(reqId: string, username: string) {
+    setActionLoading((prev) => ({ ...prev, [reqId]: true }));
+    try {
+      await cancelFriendRequest(reqId);
+      setSentRequests((prev) => prev.filter((r) => r.id !== reqId));
+      toast.info(`Cancelled friend request to @${username}`);
+    } catch {
+      toast.error("Failed to cancel request");
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [reqId]: false }));
     }
   }
 
@@ -314,51 +336,126 @@ function FriendsPage() {
               </div>
             )}
 
-            {/* ---- PENDING REQUESTS ---- */}
+            {/* ---- PENDING & SENT REQUESTS ---- */}
             {tab === "requests" && (
-              <div className="space-y-3">
-                {requests.length === 0 ? (
-                  <EmptyState
-                    icon={<Bell className="w-12 h-12 text-muted-foreground" />}
-                    title="No pending requests"
-                    description="When someone sends you a friend request, it will appear here."
-                  />
-                ) : (
-                  requests.map((req: any) => (
-                    <div key={req.id} className="glass rounded-2xl p-4 border border-white/10 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold overflow-hidden flex-shrink-0 relative">
-                          {req.sender?.avatar_url
-                            ? <img src={req.sender.avatar_url} className="w-full h-full object-cover" alt="" />
-                            : req.sender?.username?.[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate">{req.sender?.display_name || req.sender?.username}</div>
-                          <div className="text-sm text-muted-foreground">@{req.sender?.username}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            Sent {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+              <div className="space-y-4">
+                {/* Sub tabs: Incoming vs Sent */}
+                <div className="flex items-center gap-2 border-b border-border/40 pb-3">
+                  <button
+                    onClick={() => setRequestsSubTab("incoming")}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 ${
+                      requestsSubTab === "incoming"
+                        ? "bg-gradient-vivid text-white shadow-glow"
+                        : "glass text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>Incoming Requests</span>
+                    <span className="text-[10px] opacity-80">({requests.length})</span>
+                  </button>
+                  <button
+                    onClick={() => setRequestsSubTab("sent")}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 ${
+                      requestsSubTab === "sent"
+                        ? "bg-gradient-vivid text-white shadow-glow"
+                        : "glass text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>Sent Requests</span>
+                    <span className="text-[10px] opacity-80">({sentRequests.length})</span>
+                  </button>
+                </div>
+
+                {requestsSubTab === "incoming" ? (
+                  requests.length === 0 ? (
+                    <EmptyState
+                      icon={<Bell className="w-12 h-12 text-muted-foreground" />}
+                      title="No incoming friend requests"
+                      description="When someone sends you a friend request, it will appear here."
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {requests.map((req: any) => (
+                        <div key={req.id} className="glass rounded-2xl p-4 border border-white/10 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Link to="/profile/$username" params={{ username: req.sender?.username || "user" }}>
+                              <div className="w-12 h-12 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold overflow-hidden flex-shrink-0 relative shadow-glow">
+                                {req.sender?.avatar_url
+                                  ? <img src={req.sender.avatar_url} className="w-full h-full object-cover" alt="" />
+                                  : req.sender?.username?.[0]?.toUpperCase()}
+                              </div>
+                            </Link>
+                            <div className="min-w-0">
+                              <Link to="/profile/$username" params={{ username: req.sender?.username || "user" }} className="font-semibold truncate hover:text-primary transition block">
+                                {req.sender?.display_name || req.sender?.username}
+                              </Link>
+                              <div className="text-xs text-primary">@{req.sender?.username}</div>
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
+                                Sent {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleAccept(req)}
+                              disabled={actionLoading[req.id]}
+                              className="px-3.5 py-1.5 rounded-full bg-emerald-500 text-white shadow-glow hover:scale-105 text-xs font-semibold flex items-center gap-1 transition"
+                            >
+                              {actionLoading[req.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Confirm
+                            </button>
+                            <button
+                              onClick={() => handleDecline(req)}
+                              disabled={actionLoading[req.id]}
+                              className="px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-semibold transition"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleAccept(req)}
-                          disabled={actionLoading[req.id]}
-                          className="px-3.5 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-semibold flex items-center gap-1 transition"
-                        >
-                          {actionLoading[req.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Confirm
-                        </button>
-                        <button
-                          onClick={() => handleDecline(req)}
-                          disabled={actionLoading[req.id]}
-                          className="px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-semibold transition"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ))
+                  )
+                ) : (
+                  sentRequests.length === 0 ? (
+                    <EmptyState
+                      icon={<Clock className="w-12 h-12 text-muted-foreground" />}
+                      title="No pending sent requests"
+                      description="You haven't sent any friend requests that are pending acceptance."
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {sentRequests.map((req: any) => (
+                        <div key={req.id} className="glass rounded-2xl p-4 border border-white/10 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Link to="/profile/$username" params={{ username: req.receiver?.username || "user" }}>
+                              <div className="w-12 h-12 rounded-full bg-gradient-vivid grid place-items-center text-white font-bold overflow-hidden flex-shrink-0 relative shadow-glow">
+                                {req.receiver?.avatar_url
+                                  ? <img src={req.receiver.avatar_url} className="w-full h-full object-cover" alt="" />
+                                  : req.receiver?.username?.[0]?.toUpperCase()}
+                              </div>
+                            </Link>
+                            <div className="min-w-0">
+                              <Link to="/profile/$username" params={{ username: req.receiver?.username || "user" }} className="font-semibold truncate hover:text-primary transition block">
+                                {req.receiver?.display_name || req.receiver?.username}
+                              </Link>
+                              <div className="text-xs text-primary">@{req.receiver?.username}</div>
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
+                                Sent {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleCancelSent(req.id, req.receiver?.username || "user")}
+                            disabled={actionLoading[req.id]}
+                            className="px-3.5 py-1.5 rounded-full bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 text-xs font-semibold transition flex items-center gap-1"
+                          >
+                            {actionLoading[req.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />} Cancel Request
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             )}
@@ -373,7 +470,7 @@ function FriendsPage() {
                     description="Create your first group and bring your friends together."
                     action={
                       <Link to="/friends/create-group" className="rounded-full bg-gradient-to-r from-primary to-pink-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:scale-105 transition">
-                        Create Barkada Group
+                        Create Group
                       </Link>
                     }
                   />

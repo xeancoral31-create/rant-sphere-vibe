@@ -35,19 +35,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   async function loadProfile(uid: string) {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-    if (data) {
-      setProfile(data as Profile);
-    } else if (user) {
-      setProfile({
-        id: user.id,
-        username: user.username || user.firstName || "user",
-        display_name: user.fullName || user.username || null,
-        bio: "",
-        avatar_url: user.imageUrl,
-        cover_url: null,
-        is_private: false,
-      });
+    try {
+      const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+      if (data) {
+        setProfile(data as Profile);
+      } else if (user) {
+        const cleanUsername = (user.username || user.firstName || "user")
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, "");
+        const newProf: Profile = {
+          id: user.id,
+          username: cleanUsername || `user_${user.id.slice(0, 6)}`,
+          display_name: user.fullName || user.username || user.firstName || "User",
+          bio: "",
+          avatar_url: user.imageUrl || null,
+          cover_url: null,
+          is_private: false,
+        };
+        setProfile(newProf);
+        // Persist to Supabase profiles table so user is discoverable in search
+        await (supabase.from("profiles") as any).upsert(newProf).catch(() => {});
+      }
+    } catch {
+      if (user) {
+        setProfile({
+          id: user.id,
+          username: user.username || user.firstName || "user",
+          display_name: user.fullName || user.username || null,
+          bio: "",
+          avatar_url: user.imageUrl,
+          cover_url: null,
+          is_private: false,
+        });
+      }
     }
   }
 

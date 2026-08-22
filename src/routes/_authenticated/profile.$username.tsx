@@ -25,6 +25,16 @@ import {
   Users
 } from "lucide-react";
 import { SEED_POSTS, DEMO_REELS } from "@/lib/seedData";
+import {
+  getFriendRequestStatus,
+  sendFriendRequest,
+  cancelFriendRequestByUser,
+  acceptFriendRequest,
+  removeFriend,
+  getMutualFriendsCountMap,
+  getUserByUsername
+} from "@/lib/friends-api";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 
 export const Route = createFileRoute("/_authenticated/profile/$username")({ component: ProfilePage });
 
@@ -40,19 +50,14 @@ export function ProfilePage() {
   const [followingList, setFollowingList] = useState<any[]>([]);
   const [stats, setStats] = useState({ followers: 0, following: 0, postsCount: 0 });
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts");
-  const [friendStatus, setFriendStatus] = useState<"none" | "sent" | "friends">("none");
+  const [friendStatus, setFriendStatus] = useState<"none" | "sent" | "received" | "friends">("none");
+  const [mutualCount, setMutualCount] = useState<number>(0);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Modals
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [followersModalOpen, setFollowersModalOpen] = useState(false);
   const [followingModalOpen, setFollowingModalOpen] = useState(false);
-
-  // Edit form state
-  const [editName, setEditName] = useState("");
-  const [editBio, setEditBio] = useState("");
-  const [editAvatar, setEditAvatar] = useState("");
-  const [editCover, setEditCover] = useState("");
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     load();
@@ -60,13 +65,20 @@ export function ProfilePage() {
 
   async function load() {
     // 1. Fetch user profile
-    const { data: p } = await (supabase
-      .from("profiles") as any)
-      .select("*")
-      .eq("username", username)
-      .maybeSingle();
+    let currentProf: any = null;
+    try {
+      const { data: p } = await (supabase
+        .from("profiles") as any)
+        .select("*")
+        .eq("username", username)
+        .maybeSingle();
+      if (p) currentProf = p;
+    } catch {}
 
-    let currentProf: any = p;
+    if (!currentProf) {
+      currentProf = await getUserByUsername(username);
+    }
+
     if (!currentProf) {
       if (myProfile && (myProfile.username === username || user?.username === username)) {
         currentProf = myProfile;
@@ -88,10 +100,6 @@ export function ProfilePage() {
 
     if (!currentProf) return;
     setProfile(currentProf);
-    setEditName(currentProf.display_name || "");
-    setEditBio(currentProf.bio || "");
-    setEditAvatar(currentProf.avatar_url || "");
-    setEditCover(currentProf.cover_url || "");
 
     // 2. Fetch posts by this author ONLY (Strict ownership filter)
     const [{ data: ps }, { data: followersData }, { data: followingData }, isFollowing, { data: saved }] = await Promise.all([
@@ -142,10 +150,20 @@ export function ProfilePage() {
       postsCount: userOwnedPosts.length,
     });
 
-    if (isFollowing?.data) {
-      setFriendStatus("friends");
+    if (user && currentProf.id !== user.id) {
+      try {
+        const [status, mutualMap] = await Promise.all([
+          getFriendRequestStatus(user.id, currentProf.id),
+          getMutualFriendsCountMap(user.id, [currentProf.id]),
+        ]);
+        setFriendStatus(status);
+        setMutualCount(mutualMap[currentProf.id] ?? 0);
+      } catch (err) {
+        console.error("Error loading friendship status:", err);
+      }
     } else {
       setFriendStatus("none");
+      setMutualCount(0);
     }
 
     if (saved) {
@@ -155,55 +173,36 @@ export function ProfilePage() {
 
   async function handleAddFriend() {
     if (!user || !profile) return toast.error("Please sign in");
-    if (friendStatus === "friends") {
-      // Unfriend
-      await (supabase
-        .from("follows") as any)
-        .delete()
-        .eq("follower_id", user.id)
-        .eq("following_id", profile.id);
-      setFriendStatus("none");
-      setStats(s => ({ ...s, followers: Math.max(0, s.followers - 1) }));
-      toast.success(`Removed @${profile.username} from friends`);
-    } else if (friendStatus === "none") {
-      // Send friend request
-      setFriendStatus("sent");
-      await (supabase
-        .from("follows") as any)
-        .insert({ follower_id: user.id, following_id: profile.id });
-      await (supabase
-        .from("notifications") as any)
-        .insert({
-          user_id: profile.id,
-          actor_id: user.id,
-          type: "follow" as never,
-        });
-      setStats(s => ({ ...s, followers: s.followers + 1 }));
-      toast.success(`Friend request sent to @${profile.username}!`);
+    if (actionLoading) return;
+    setActionLoading(true);
+
+    try {
+      if (friendStatus === "friends") {
+        if (!confirm(`Are you sure you want to remove @${profile.username} from your friends?`)) {
+          setActionLoading(false);
+          return;
+        }
+        await removeFriend(user.id, profile.id);
+        setFriendStatus("none");
+        toast.info(`Removed @${profile.username} from friends`);
+      } else if (friendStatus === "sent") {
+        await cancelFriendRequestByUser(user.id, profile.id);
+        setFriendStatus("none");
+        toast.info(`Cancelled friend request to @${profile.username}`);
+      } else if (friendStatus === "received") {
+        await acceptFriendRequest("", profile.id, user.id);
+        setFriendStatus("friends");
+        toast.success(`You and @${profile.username} are now friends! 🎉`);
+      } else {
+        await sendFriendRequest(user.id, profile.id);
+        setFriendStatus("sent");
+        toast.success(`Friend request sent to @${profile.username}!`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update friendship status. Please try again.");
+    } finally {
+      setActionLoading(false);
     }
-  }
-
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user || !profile) return;
-    setSaving(true);
-
-    const { error } = await (supabase
-      .from("profiles") as any)
-      .update({
-        display_name: editName.trim() || null,
-        bio: editBio.trim() || null,
-        avatar_url: editAvatar.trim() || null,
-        cover_url: editCover.trim() || null,
-      })
-      .eq("id", user.id);
-
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Profile updated!");
-    setEditModalOpen(false);
-    refreshProfile();
-    load();
   }
 
   if (!profile) {
@@ -234,9 +233,19 @@ export function ProfilePage() {
     <div className="max-w-4xl mx-auto pb-16 pt-4 md:pt-8 px-4 sm:px-6">
       {/* Profile Header Card */}
       <div className="glass rounded-3xl p-6 md:p-10 shadow-2xl border border-white/10 backdrop-blur-xl mb-8 relative overflow-hidden bg-card/40 hover:bg-card/50 transition-colors duration-500">
-        {/* Abstract background blobs for aesthetics */}
-        <div className="absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-pink-500/20 rounded-full blur-[100px] pointer-events-none" />
+        {/* Cover Photo / Background */}
+        {profile.cover_url ? (
+          <div className="absolute inset-0 z-0">
+            <img src={profile.cover_url} alt="Profile cover" className="w-full h-full object-cover opacity-25" />
+            <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-transparent" />
+          </div>
+        ) : (
+          <>
+            {/* Abstract background blobs for aesthetics */}
+            <div className="absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-pink-500/20 rounded-full blur-[100px] pointer-events-none" />
+          </>
+        )}
         
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
           {/* Avatar */}
@@ -280,7 +289,7 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
+            {/* Action Buttons */}
           <div className="flex flex-row md:flex-col gap-3 w-full md:w-36 mt-6 md:mt-0 shrink-0">
             {isMe ? (
               <button
@@ -299,18 +308,24 @@ export function ProfilePage() {
                 </Link>
                 <button
                   onClick={handleAddFriend}
+                  disabled={actionLoading}
                   className={`w-full rounded-full py-3 text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-lg backdrop-blur-md flex-1 md:flex-none ${
                     friendStatus === "friends"
-                      ? "bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20"
+                      ? "bg-emerald-500/15 text-emerald-400 hover:bg-rose-500/20 hover:text-rose-400 border border-emerald-500/30"
                       : friendStatus === "sent"
-                      ? "bg-white/5 text-muted-foreground border border-white/5 cursor-default"
+                      ? "bg-amber-500/15 text-amber-300 hover:bg-rose-500/20 hover:text-rose-300 border border-amber-500/30"
+                      : friendStatus === "received"
+                      ? "bg-gradient-vivid text-white shadow-glow hover:scale-105"
                       : "bg-gradient-vivid text-white shadow-glow hover:scale-105 hover:shadow-xl border-0"
                   }`}
+                  title={friendStatus === "sent" ? "Click to cancel request" : friendStatus === "friends" ? "Click to unfriend" : undefined}
                 >
                   {friendStatus === "friends" ? (
                     <><UserCheck className="w-4 h-4" /> Friends</>
                   ) : friendStatus === "sent" ? (
-                    <><Clock className="w-4 h-4 animate-spin" /> Sent</>
+                    <><Clock className="w-4 h-4" /> Request Sent</>
+                  ) : friendStatus === "received" ? (
+                    <><UserCheck className="w-4 h-4" /> Confirm Request</>
                   ) : (
                     <><UserPlus className="w-4 h-4" /> Add Friend</>
                   )}
@@ -511,87 +526,26 @@ export function ProfilePage() {
       )}
 
       {/* Edit Profile Modal */}
-      {editModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setEditModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-lg bg-card border border-border/60 rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-border/40 pb-3">
-              <h2 className="font-display text-xl font-bold">Edit Profile</h2>
-              <button onClick={() => setEditModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">Display Name</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Your full name"
-                  className="w-full bg-input border border-border/40 rounded-xl px-3.5 py-2 text-sm outline-none mt-1 focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">Bio</label>
-                <textarea
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  placeholder="Tell the sphere about yourself..."
-                  rows={3}
-                  maxLength={160}
-                  className="w-full bg-input border border-border/40 rounded-xl p-3 text-sm outline-none mt-1 focus:ring-1 focus:ring-primary resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">Avatar Image URL</label>
-                <input
-                  type="url"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-input border border-border/40 rounded-xl px-3.5 py-2 text-sm outline-none mt-1 focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground">Cover Banner URL</label>
-                <input
-                  type="url"
-                  value={editCover}
-                  onChange={(e) => setEditCover(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-input border border-border/40 rounded-xl px-3.5 py-2 text-sm outline-none mt-1 focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-border/40">
-                <button
-                  type="button"
-                  onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-full bg-gradient-vivid px-6 py-2 text-xs font-semibold text-white shadow-glow hover:scale-105 transition disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {isMe && profile && (
+        <EditProfileModal
+          open={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          initialProfile={{
+            id: profile.id,
+            username: profile.username,
+            display_name: profile.display_name,
+            bio: profile.bio,
+            avatar_url: profile.avatar_url,
+            cover_url: profile.cover_url,
+          }}
+          onProfileUpdated={(updated) => {
+            setProfile((prev: any) => ({
+              ...prev,
+              ...updated,
+            }));
+            load();
+          }}
+        />
       )}
     </div>
   );

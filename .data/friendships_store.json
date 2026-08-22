@@ -1,0 +1,21 @@
+{
+  "requests": [
+    {
+      "id": "req_2c9qmzd_mt3y6mq7",
+      "sender_id": "user_3I88sy9ocgWdlQlgxgphAzL3BPN",
+      "receiver_id": "demo-user-1",
+      "status": "pending",
+      "created_at": "2026-08-22T05:38:32.719Z",
+      "updated_at": "2026-08-22T05:38:32.719Z"
+    },
+    {
+      "id": "req_53fktjs_mt3yyrdo",
+      "sender_id": "user_3I88sy9ocgWdlQlgxgphAzL3BPN",
+      "receiver_id": "user_3I5gjAELp9ZwzoYTpfufa5TI9aB",
+      "status": "pending",
+      "created_at": "2026-08-22T06:00:25.116Z",
+      "updated_at": "2026-08-22T06:00:25.116Z"
+    }
+  ],
+  "friendships": []
+}
